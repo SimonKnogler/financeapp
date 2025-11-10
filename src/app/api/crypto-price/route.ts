@@ -14,11 +14,15 @@ export async function GET(request: NextRequest) {
 
   const symbolUpper = symbol.toUpperCase();
 
+  console.log(`[crypto-price] Fetching price for ${symbol}`);
+  
   try {
     // Try Binance first - much faster and more reliable
     // Get price in USDT first (most liquid pair)
     const binancePair = `${symbolUpper}USDT`;
     const binanceUrl = `https://api.binance.com/api/v3/ticker/24hr?symbol=${binancePair}`;
+    
+    console.log(`[crypto-price] Trying Binance: ${binanceUrl}`);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
@@ -30,6 +34,8 @@ export async function GET(request: NextRequest) {
         next: { revalidate: 30 }, // Cache for 30 seconds
       });
       clearTimeout(timeoutId);
+
+      console.log(`[crypto-price] Binance response status: ${binanceResponse.status}`);
 
       if (binanceResponse.ok) {
         const binanceData = await binanceResponse.json();
@@ -56,6 +62,8 @@ export async function GET(request: NextRequest) {
 
           const eurPrice = priceUsdt * eurRate;
 
+          console.log(`[crypto-price] Success via Binance: ${eurPrice} EUR`);
+
           return NextResponse.json({
             symbol: symbolUpper,
             price: eurPrice,
@@ -68,18 +76,20 @@ export async function GET(request: NextRequest) {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.warn(`Binance timeout for ${symbol}`);
+        console.warn(`[crypto-price] Binance timeout for ${symbol}`);
       } else {
-        console.warn(`Binance failed for ${symbol}:`, error);
+        console.warn(`[crypto-price] Binance failed for ${symbol}:`, error);
       }
     } finally {
       clearTimeout(timeoutId);
     }
   } catch (error) {
-    console.warn(`Error with Binance for ${symbol}:`, error);
+    console.warn(`[crypto-price] Error with Binance for ${symbol}:`, error);
   }
 
   // Fallback to CoinCap for less common cryptos
+  console.log(`[crypto-price] Trying CoinCap fallback for ${symbol}`);
+  
   try {
     const coinCapIds: Record<string, string> = {
       BTC: "bitcoin",
@@ -108,6 +118,8 @@ export async function GET(request: NextRequest) {
     const coinCapId = coinCapIds[symbolUpper] || symbol.toLowerCase();
     const coinCapUrl = `https://api.coincap.io/v2/assets/${coinCapId}`;
     
+    console.log(`[crypto-price] CoinCap URL: ${coinCapUrl}`);
+    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -119,6 +131,8 @@ export async function GET(request: NextRequest) {
       });
       clearTimeout(timeoutId);
 
+      console.log(`[crypto-price] CoinCap response status: ${coinCapResponse.status}`);
+
       if (coinCapResponse.ok) {
         const coinCapData = await coinCapResponse.json();
         
@@ -126,6 +140,8 @@ export async function GET(request: NextRequest) {
           const priceUsd = parseFloat(coinCapData.data.priceUsd);
           const changePercent24Hr = parseFloat(coinCapData.data.changePercent24Hr || "0");
           const eurPrice = priceUsd * 0.92; // Simple conversion
+
+          console.log(`[crypto-price] Success via CoinCap: ${eurPrice} EUR`);
 
           return NextResponse.json({
             symbol: symbolUpper,
@@ -135,19 +151,23 @@ export async function GET(request: NextRequest) {
             change24h: changePercent24Hr,
             source: "coincap",
           });
+        } else {
+          console.warn(`[crypto-price] CoinCap returned no price data for ${symbol}`);
         }
       }
     } catch (error) {
       clearTimeout(timeoutId);
+      console.warn(`[crypto-price] CoinCap error for ${symbol}:`, error);
       throw error;
     }
 
+    console.warn(`[crypto-price] Crypto not found: ${symbol}`);
     return NextResponse.json({ error: "Crypto not found" }, { status: 404 });
     
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error fetching crypto price for ${symbol}:`, error);
     return NextResponse.json(
-      { error: "Failed to fetch crypto price" },
+      { error: "Failed to fetch crypto price", details: error?.message || String(error) },
       { status: 500 }
     );
   }
