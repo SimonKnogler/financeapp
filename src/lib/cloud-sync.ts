@@ -36,7 +36,8 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
       cost_basis: stock.costBasis,
       purchase_date_iso: stock.purchaseDateISO,
       type: stock.type || 'stock',
-      owner: stock.owner,
+      // Ensure owner is valid ('simon', 'carolina', or 'household')
+      owner: ['simon', 'carolina', 'household'].includes(stock.owner) ? stock.owner : 'simon',
       goal_id: stock.goalId ? toUUID(stock.goalId) : null,
       sparplan: stock.sparplan,
     }));
@@ -55,7 +56,8 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
       growth_annual: exp.growthAnnual,
       start_date_iso: exp.startDateISO,
       end_date_iso: exp.endDateISO,
-      owner: exp.owner,
+      // Ensure owner is valid ('simon', 'carolina', or 'household')
+      owner: ['simon', 'carolina', 'household'].includes(exp.owner) ? exp.owner : 'simon',
     }));
     const { error } = await supabase.from('expenses').insert(expensesData);
     if (error) throw error;
@@ -71,7 +73,8 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
       frequency: inc.frequency,
       growth_annual: inc.growthAnnual,
       start_date_iso: inc.startDateISO,
-      owner: inc.owner,
+      // Ensure owner is valid (only 'simon' or 'carolina' allowed for incomes)
+      owner: (inc.owner === 'simon' || inc.owner === 'carolina') ? inc.owner : 'simon',
       allocations: inc.goalAllocations,
     }));
     const { error } = await supabase.from('incomes').insert(incomesData);
