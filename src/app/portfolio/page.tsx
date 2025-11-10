@@ -136,6 +136,16 @@ export default function PortfolioPage() {
               console.log(`${stock.symbol}: ${priceData.price} ${priceData.currency}`);
               priceMap.set(stock.symbol.toUpperCase(), priceData);
             }
+          } else {
+            // Price fetch failed - set error state
+            console.error(`Failed to fetch price for ${stock.symbol}: ${priceRes.status}`);
+            priceMap.set(stock.symbol.toUpperCase(), {
+              symbol: stock.symbol.toUpperCase(),
+              price: 0,
+              currency: "EUR",
+              timestamp: Date.now(),
+              error: true,
+            } as any);
           }
           
           // Fetch news (ETFs use same endpoint as stocks, no news for cash)
@@ -596,7 +606,11 @@ export default function PortfolioPage() {
                     {assetType === "cash" ? (
                       <span className="text-zinc-500">Cash</span>
                     ) : price ? (
-                      formatCurrencyDetailed(currentPrice, "EUR", privacyMode)
+                      (price as any).error ? (
+                        <span className="text-red-500 dark:text-red-400">Error</span>
+                      ) : (
+                        formatCurrencyDetailed(currentPrice, "EUR", privacyMode)
+                      )
                     ) : (
                       <span className="text-zinc-400">Loading...</span>
                     )}
