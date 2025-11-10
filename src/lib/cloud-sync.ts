@@ -61,7 +61,7 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
       growth_annual: inc.growthAnnual,
       start_date_iso: inc.startDateISO,
       owner: inc.owner,
-      allocations: inc.allocations,
+      allocations: inc.goalAllocations,
     }));
     const { error } = await supabase.from('incomes').insert(incomesData);
     if (error) throw error;
@@ -75,7 +75,8 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
       name: goal.name,
       target_amount: goal.targetAmount,
       target_date_iso: goal.targetDateISO,
-      color: goal.color,
+      // Store color as empty string for now (database expects it)
+      color: '#3b82f6', // Default blue color
     }));
     const { error } = await supabase.from('goals').insert(goalsData);
     if (error) throw error;
@@ -98,8 +99,8 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
   const { error: assumptionsError } = await supabase.from('assumptions').upsert({
     user_id: user.id,
     currency: data.assumptions.currency,
-    inflation_rate: data.assumptions.inflationRate,
-    tax_rate: data.assumptions.taxRate,
+    inflation_rate: data.assumptions.inflationAnnual,
+    tax_rate: data.assumptions.taxRateEffective,
   });
   if (assumptionsError) throw assumptionsError;
 
@@ -180,33 +181,38 @@ export async function downloadFromCloud(): Promise<FinanceState & { customAssetR
       growthAnnual: i.growth_annual,
       startDateISO: i.start_date_iso,
       owner: i.owner,
-      allocations: i.allocations,
+      goalAllocations: i.allocations,
     })),
     goals: (goals || []).map(g => ({
       id: g.id,
       name: g.name,
       targetAmount: g.target_amount,
+      currentAmount: 0, // Default value
       targetDateISO: g.target_date_iso,
-      color: g.color,
+      category: 'other' as const,
+      priority: 'medium' as const,
+      owner: 'simon' as const,
     })),
     portfolioHistory: (snapshots || []).map(s => ({
       dateISO: s.date_iso,
       totalValue: s.total_value,
+      cashValue: 0, // Not stored separately in database
+      investmentValue: s.total_value, // Assume all is investment for now
       owner: s.owner,
       timestamp: s.timestamp,
     })),
     assumptions: assumptions ? {
       startDateISO: new Date().toISOString().split('T')[0],
-      horizonYears: 30,
+      projectionYears: 30,
       currency: assumptions.currency,
-      inflationRate: assumptions.inflation_rate,
-      taxRate: assumptions.tax_rate,
+      inflationAnnual: assumptions.inflation_rate,
+      taxRateEffective: assumptions.tax_rate,
     } : {
       startDateISO: new Date().toISOString().split('T')[0],
-      horizonYears: 30,
+      projectionYears: 30,
       currency: 'EUR',
-      inflationRate: 0.02,
-      taxRate: 0.26,
+      inflationAnnual: 0.02,
+      taxRateEffective: 0.26,
     },
     customAssetReturns: (customReturns || []).reduce((acc, cr) => {
       acc[cr.symbol] = cr.expected_return;

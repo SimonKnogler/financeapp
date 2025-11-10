@@ -11,7 +11,25 @@ export function CloudSync() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const store = useFinanceStore();
+  // Get all store data
+  const accounts = useFinanceStore((s) => s.accounts);
+  const stocks = useFinanceStore((s) => s.stocks);
+  const expenses = useFinanceStore((s) => s.expenses);
+  const incomes = useFinanceStore((s) => s.incomes);
+  const goals = useFinanceStore((s) => s.goals);
+  const portfolioHistory = useFinanceStore((s) => s.portfolioHistory);
+  const assumptions = useFinanceStore((s) => s.assumptions);
+  const customAssetReturns = useFinanceStore((s) => s.customAssetReturns);
+  
+  // Get store actions
+  const addStock = useFinanceStore((s) => s.addStock);
+  const addExpense = useFinanceStore((s) => s.addExpense);
+  const addIncome = useFinanceStore((s) => s.addIncome);
+  const addGoal = useFinanceStore((s) => s.addGoal);
+  const addPortfolioSnapshot = useFinanceStore((s) => s.addPortfolioSnapshot);
+  const setAssumptions = useFinanceStore((s) => s.setAssumptions);
+  const setCustomAssetReturn = useFinanceStore((s) => s.setCustomAssetReturn);
+  const resetAll = useFinanceStore((s) => s.resetAll);
 
   async function checkLastSync() {
     try {
@@ -31,16 +49,15 @@ export function CloudSync() {
     setMessage(null);
 
     try {
-      const currentState = store.getState() as any;
       await uploadToCloud({
-        accounts: currentState.accounts,
-        stocks: currentState.stocks,
-        expenses: currentState.expenses,
-        incomes: currentState.incomes,
-        goals: currentState.goals,
-        portfolioHistory: currentState.portfolioHistory,
-        assumptions: currentState.assumptions,
-        customAssetReturns: currentState.customAssetReturns,
+        accounts,
+        stocks,
+        expenses,
+        incomes,
+        goals,
+        portfolioHistory,
+        assumptions,
+        customAssetReturns,
       });
       setMessage({ type: "success", text: "✅ Data uploaded to cloud successfully!" });
       checkLastSync();
@@ -63,19 +80,19 @@ export function CloudSync() {
       const cloudData = await downloadFromCloud();
       
       // Reset store with cloud data
-      store.resetAll();
+      resetAll();
       
       // Populate with cloud data
-      cloudData.stocks.forEach(stock => store.addStock(stock as any));
-      cloudData.expenses.forEach(expense => store.addExpense(expense as any));
-      cloudData.incomes.forEach(income => store.addIncome(income as any));
-      cloudData.goals.forEach(goal => store.addGoal(goal as any));
-      cloudData.portfolioHistory.forEach(snap => store.addPortfolioSnapshot(snap as any));
-      store.setAssumptions(cloudData.assumptions);
+      cloudData.stocks.forEach(stock => addStock(stock as any));
+      cloudData.expenses.forEach(expense => addExpense(expense as any));
+      cloudData.incomes.forEach(income => addIncome(income as any));
+      cloudData.goals.forEach(goal => addGoal(goal as any));
+      cloudData.portfolioHistory.forEach(snap => addPortfolioSnapshot(snap as any));
+      setAssumptions(cloudData.assumptions);
       
       // Set custom returns
       Object.entries(cloudData.customAssetReturns).forEach(([symbol, expectedReturn]) => {
-        store.setCustomAssetReturn(symbol, expectedReturn);
+        setCustomAssetReturn(symbol, expectedReturn);
       });
 
       setMessage({ type: "success", text: "✅ Data downloaded from cloud successfully!" });
