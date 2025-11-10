@@ -1,5 +1,16 @@
 import { supabase } from './supabase';
 import type { FinanceState } from '@/types/finance';
+import { v4 as uuidv4 } from 'uuid';
+
+// Helper to convert old IDs to UUIDs
+function toUUID(id: string): string {
+  // If already a UUID, return as is
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return id;
+  }
+  // Otherwise generate a new UUID
+  return uuidv4();
+}
 
 export async function uploadToCloud(data: FinanceState & { customAssetReturns: Record<string, number> }) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -18,7 +29,7 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
   // Upload stocks
   if (data.stocks.length > 0) {
     const stocksData = data.stocks.map(stock => ({
-      id: stock.id,
+      id: toUUID(stock.id),
       user_id: user.id,
       symbol: stock.symbol,
       shares: stock.shares,
@@ -26,7 +37,7 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
       purchase_date_iso: stock.purchaseDateISO,
       type: stock.type || 'stock',
       owner: stock.owner,
-      goal_id: stock.goalId,
+      goal_id: stock.goalId ? toUUID(stock.goalId) : null,
       sparplan: stock.sparplan,
     }));
     const { error } = await supabase.from('stocks').insert(stocksData);
@@ -36,7 +47,7 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
   // Upload expenses
   if (data.expenses.length > 0) {
     const expensesData = data.expenses.map(exp => ({
-      id: exp.id,
+      id: toUUID(exp.id),
       user_id: user.id,
       name: exp.name,
       amount: exp.amount,
@@ -53,7 +64,7 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
   // Upload incomes
   if (data.incomes.length > 0) {
     const incomesData = data.incomes.map(inc => ({
-      id: inc.id,
+      id: toUUID(inc.id),
       user_id: user.id,
       name: inc.name,
       amount: inc.amount,
@@ -70,7 +81,7 @@ export async function uploadToCloud(data: FinanceState & { customAssetReturns: R
   // Upload goals
   if (data.goals.length > 0) {
     const goalsData = data.goals.map(goal => ({
-      id: goal.id,
+      id: toUUID(goal.id),
       user_id: user.id,
       name: goal.name,
       target_amount: goal.targetAmount,
