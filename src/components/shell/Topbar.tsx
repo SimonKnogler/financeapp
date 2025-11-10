@@ -1,15 +1,45 @@
 "use client";
 
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export function Topbar() {
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserEmail(session?.user?.email || null);
+    });
+  }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
   return (
     <header className="h-14 w-full border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-3 md:px-4">
       <Link href="/" className="md:hidden text-sm font-semibold">
         Finances
       </Link>
       <div className="flex-1" />
+      {userEmail && (
+        <div className="flex items-center gap-3 mr-3">
+          <span className="text-xs text-zinc-600 dark:text-zinc-400 hidden sm:inline">
+            {userEmail}
+          </span>
+          <button
+            onClick={handleSignOut}
+            className="text-xs px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
       <ThemeToggle />
     </header>
   );
