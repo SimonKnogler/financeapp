@@ -78,6 +78,27 @@ export default function PortfolioPage() {
     // Add cache buster for manual refresh
     const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : '';
     
+    // Helper function to fetch with timeout
+    const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      }
+    };
+
     // Fetch prices and news for each asset based on type
     await Promise.all(
       stocks.map(async (stock) => {
@@ -95,9 +116,11 @@ export default function PortfolioPage() {
 
           // Fetch price (ETFs use same endpoint as stocks)
           const priceEndpoint = stock.type === "crypto" ? "/api/crypto-price" : "/api/stock-price";
-          const priceRes = await fetch(`${priceEndpoint}?symbol=${encodeURIComponent(stock.symbol)}${cacheBuster}`, {
-            cache: forceRefresh ? 'no-store' : 'default'
-          });
+          const priceRes = await fetchWithTimeout(
+            `${priceEndpoint}?symbol=${encodeURIComponent(stock.symbol)}${cacheBuster}`,
+            { cache: forceRefresh ? 'no-store' : 'default' },
+            10000 // 10 second timeout
+          );
           if (priceRes.ok) {
             const priceData = await priceRes.json();
             // Convert to EUR if needed (stocks and ETFs)
@@ -118,9 +141,11 @@ export default function PortfolioPage() {
           // Fetch news (ETFs use same endpoint as stocks, no news for cash)
           if (stock.type === "crypto" || stock.type === "stock" || stock.type === "etf") {
             const newsEndpoint = stock.type === "crypto" ? "/api/crypto-news" : "/api/stock-news";
-            const newsRes = await fetch(`${newsEndpoint}?symbol=${encodeURIComponent(stock.symbol)}${cacheBuster}`, {
-              cache: forceRefresh ? 'no-store' : 'default'
-            });
+            const newsRes = await fetchWithTimeout(
+              `${newsEndpoint}?symbol=${encodeURIComponent(stock.symbol)}${cacheBuster}`,
+              { cache: forceRefresh ? 'no-store' : 'default' },
+              10000 // 10 second timeout
+            );
             if (newsRes.ok) {
               const newsData = await newsRes.json();
               newsMap.set(stock.symbol.toUpperCase(), newsData.news || []);
