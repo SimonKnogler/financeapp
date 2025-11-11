@@ -383,11 +383,23 @@ export default function PortfolioPage() {
       {/* Portfolio Performance Chart */}
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
         <div className="mb-3 font-semibold">Portfolio Performance</div>
-        <PortfolioChart 
-          portfolioHistory={portfolioHistory.filter(s => s.owner === activeTab)} 
-          currentValue={totalValue} 
-          height={280} 
-        />
+        {(() => {
+          const filteredHistory = portfolioHistory.filter(s => s.owner === activeTab);
+          console.log(`[Portfolio ${activeTab}] Passing to chart:`, {
+            currentValue: totalValue,
+            cashValue,
+            investmentValue,
+            historyCount: filteredHistory.length,
+            latestSnapshot: filteredHistory[filteredHistory.length - 1]
+          });
+          return (
+            <PortfolioChart 
+              portfolioHistory={filteredHistory} 
+              currentValue={totalValue} 
+              height={280} 
+            />
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
