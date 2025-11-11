@@ -33,7 +33,7 @@ interface NewsData {
 export default function NewsPage() {
   const [newsData, setNewsData] = useState<NewsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "germany" | "us">("all");
+  const [filter, setFilter] = useState<"all" | "germany" | "us" | "global">("all");
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<YouTubeVideo | null>(null);
 
@@ -110,7 +110,7 @@ export default function NewsPage() {
           <div>
             <h1 className="text-xl font-semibold">Financial News</h1>
             <p className="text-sm text-zinc-500">
-              Economic & Finance updates from Germany and the US
+              Economic & market updates from Germany, the US, and global sources
             </p>
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function NewsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto">
         <button
           onClick={() => setFilter("all")}
           className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors border-b-2 ${
@@ -157,23 +157,30 @@ export default function NewsPage() {
         >
           🇺🇸 United States
         </button>
+        <button
+          onClick={() => setFilter("global")}
+          className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors border-b-2 ${
+            filter === "global"
+              ? "border-purple-500 text-purple-600 dark:text-purple-400"
+              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+          }`}
+        >
+          🌍 Global
+        </button>
       </div>
 
       {/* Setup Notice */}
       {newsData?.usingFallback && (
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
-          <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
-            📰 Setup API Keys for Live News
-          </h3>
-          <p className="text-xs text-blue-800 dark:text-blue-400 mb-2">
-            Currently showing fallback content. Add these API keys to your <code>.env.local</code> file:
-          </p>
-          <ul className="text-xs text-blue-800 dark:text-blue-400 space-y-1 ml-4">
-            <li>• <strong>NEWS_API_KEY</strong> - Get free at <a href="https://newsapi.org/" target="_blank" rel="noopener" className="underline">newsapi.org</a></li>
-            <li>• <strong>YOUTUBE_API_KEY</strong> - Get free at <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" className="underline">Google Cloud</a></li>
-          </ul>
-        </div>
-      )}
+         <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
+           <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
+            📰 Live feeds temporarily unavailable
+           </h3>
+           <p className="text-xs text-blue-800 dark:text-blue-400 mb-2">
+            We couldn’t reach the news services just now. The app will keep retrying automatically—please check your
+            connection or try again in a moment.
+           </p>
+         </div>
+       )}
 
       {/* Last Update */}
       {lastUpdate && (
