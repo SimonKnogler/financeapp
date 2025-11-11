@@ -1,5 +1,6 @@
 "use client";
 
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { uploadToCloud, downloadFinanceDocument } from "@/lib/cloud-sync";
@@ -123,11 +124,12 @@ export function RealtimeSyncListener() {
           table: "finance_documents",
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<{ payload: FinanceSyncDocument | null }>) => {
           if (!active) {
             return;
           }
-          const document = (payload.new?.payload ?? null) as FinanceSyncDocument | null;
+          const record = (payload.new ?? null) as { payload?: FinanceSyncDocument | null } | null;
+          const document = record?.payload ?? null;
           if (document) {
             applyDocument(document, "remote");
           } else {

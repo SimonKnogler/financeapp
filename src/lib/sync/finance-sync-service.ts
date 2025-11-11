@@ -47,9 +47,9 @@ function isLegacySeedIncome(income: { name: string; amount: number; frequency: s
   );
 }
 
-function cleanObject<T extends Record<string, unknown>>(input: T): T {
-  const result: Record<string, unknown> = {};
-  for (const key of Object.keys(input)) {
+function cleanObject<T extends object>(input: T): T {
+  const result: Partial<T> = {};
+  for (const key of Object.keys(input) as Array<keyof T>) {
     const value = input[key];
     if (value !== undefined) {
       result[key] = value;

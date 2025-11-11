@@ -89,7 +89,7 @@ export interface FinanceStore extends FinanceState {
   duplicateTaxScenario: (id: string) => void;
 }
 
-const defaultState: FinanceState & { customAssetReturns: Record<string, number>; taxScenarios: GermanTaxScenario[] } = {
+const defaultState: FinanceState & { customAssetReturns: Record<string, number>; taxScenarios: GermanTaxScenario[]; cloudSyncToken: number } = {
   accounts: [],
   incomes: [],
   expenses: [],
