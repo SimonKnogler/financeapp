@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Fetch cryptocurrency price using CoinCap API (reliable, no API key needed)
+ * Fetch cryptocurrency price using CoinGecko API (free, no API key needed)
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -13,21 +13,21 @@ export async function GET(request: NextRequest) {
 
   const symbolUpper = symbol.toUpperCase();
 
-  // Map common crypto symbols to CoinCap IDs
-  const coinCapIds: Record<string, string> = {
+  // Map common crypto symbols to CoinGecko IDs
+  const coinGeckoIds: Record<string, string> = {
     BTC: "bitcoin",
     ETH: "ethereum",
     USDT: "tether",
-    BNB: "binance-coin",
+    BNB: "binancecoin",
     USDC: "usd-coin",
-    XRP: "xrp",
+    XRP: "ripple",
     ADA: "cardano",
     DOGE: "dogecoin",
     SOL: "solana",
     DOT: "polkadot",
-    MATIC: "polygon",
+    MATIC: "matic-network",
     LTC: "litecoin",
-    AVAX: "avalanche",
+    AVAX: "avalanche-2",
     LINK: "chainlink",
     UNI: "uniswap",
     ATOM: "cosmos",
@@ -38,17 +38,17 @@ export async function GET(request: NextRequest) {
     ETC: "ethereum-classic",
   };
 
-  const coinCapId = coinCapIds[symbolUpper] || symbol.toLowerCase();
-  const coinCapUrl = `https://api.coincap.io/v2/assets/${coinCapId}`;
+  const coinGeckoId = coinGeckoIds[symbolUpper] || symbol.toLowerCase();
+  const coinGeckoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=eur&include_24hr_change=true`;
 
   try {
-    const response = await fetch(coinCapUrl, {
+    const response = await fetch(coinGeckoUrl, {
       headers: { "Accept": "application/json" },
-      next: { revalidate: 30 }, // Cache for 30 seconds
+      next: { revalidate: 60 }, // Cache for 1 minute
     });
 
     if (!response.ok) {
-      console.error(`CoinCap API error for ${symbol}: ${response.status}`);
+      console.error(`CoinGecko API error for ${symbol}: ${response.status}`);
       return NextResponse.json(
         { error: "Crypto not found", symbol: symbolUpper },
         { status: 404 }
@@ -57,19 +57,16 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
 
-    if (!data.data?.priceUsd) {
-      console.error(`No price data for ${symbol}`);
+    if (!data[coinGeckoId]?.eur) {
+      console.error(`No price data for ${symbol} (${coinGeckoId})`);
       return NextResponse.json(
         { error: "No price data available", symbol: symbolUpper },
         { status: 404 }
       );
     }
 
-    const priceUsd = parseFloat(data.data.priceUsd);
-    const changePercent24Hr = parseFloat(data.data.changePercent24Hr || "0");
-    
-    // Simple USD to EUR conversion (approximate)
-    const eurPrice = priceUsd * 0.92;
+    const eurPrice = data[coinGeckoId].eur;
+    const changePercent24Hr = data[coinGeckoId].eur_24h_change || 0;
 
     return NextResponse.json({
       symbol: symbolUpper,
@@ -77,7 +74,7 @@ export async function GET(request: NextRequest) {
       currency: "EUR",
       timestamp: Date.now(),
       change24h: changePercent24Hr,
-      source: "coincap",
+      source: "coingecko",
     });
   } catch (error: any) {
     console.error(`Error fetching crypto price for ${symbol}:`, error.message || error);
