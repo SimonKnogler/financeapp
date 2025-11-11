@@ -33,6 +33,10 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date(todayStr);
     
+    console.log('[PortfolioChart] portfolioHistory:', portfolioHistory.length, 'snapshots');
+    console.log('[PortfolioChart] currentValue:', currentValue);
+    console.log('[PortfolioChart] range:', range);
+    
     // Calculate date range based on selection
     const startDate = new Date(today);
     switch (range) {
@@ -67,6 +71,8 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    console.log('[PortfolioChart] filteredSnapshots:', filteredSnapshots);
+
     // Always include today's current total value
     const todayIndex = filteredSnapshots.findIndex(s => s.date === todayStr);
     if (todayIndex >= 0) {
@@ -75,6 +81,8 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
       filteredSnapshots.push({ date: todayStr, value: currentValue });
       filteredSnapshots.sort((a, b) => a.date.localeCompare(b.date));
     }
+
+    console.log('[PortfolioChart] final data:', filteredSnapshots);
 
     return filteredSnapshots;
   }, [portfolioHistory, currentValue, range]);
