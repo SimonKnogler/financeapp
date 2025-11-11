@@ -18,6 +18,7 @@ interface PortfolioChartProps {
   portfolioHistory: PortfolioSnapshot[];
   currentValue: number;
   height?: number;
+  baselineValue?: number;
 }
 
 interface DataPoint {
@@ -25,7 +26,7 @@ interface DataPoint {
   value: number;
 }
 
-export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }: PortfolioChartProps) {
+export function PortfolioChart({ portfolioHistory, currentValue, height = 300, baselineValue }: PortfolioChartProps) {
   const privacyMode = useFinanceStore((s) => s.privacyMode);
   const [range, setRange] = useState("1mo");
 
@@ -59,7 +60,7 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
     const startDateStr = startDate.toISOString().split('T')[0];
     
     // Filter snapshots based on range using total portfolio value
-    const filteredSnapshots = portfolioHistory
+    let filteredSnapshots = portfolioHistory
       .filter((snapshot) => snapshot.dateISO >= startDateStr)
       .map((snapshot) => ({
         date: snapshot.dateISO,
@@ -76,8 +77,23 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
       filteredSnapshots.sort((a, b) => a.date.localeCompare(b.date));
     }
 
+    // Inject a synthetic baseline point if we have a baseline value and not enough history
+    if (baselineValue !== undefined) {
+      const firstDate = filteredSnapshots[0]?.date ?? todayStr;
+      const firstValue = filteredSnapshots[0]?.value ?? currentValue;
+      if (Math.abs(firstValue - baselineValue) > 0.5) {
+        const baseDate = new Date(firstDate);
+        baseDate.setDate(baseDate.getDate() - 1);
+        const baselineDateISO = baseDate.toISOString().split('T')[0];
+        filteredSnapshots = [
+          { date: baselineDateISO, value: baselineValue },
+          ...filteredSnapshots,
+        ];
+      }
+    }
+
     return filteredSnapshots;
-  }, [portfolioHistory, currentValue, range]);
+  }, [portfolioHistory, currentValue, range, baselineValue]);
 
   if (data.length === 0) {
     return (
@@ -88,10 +104,10 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
   }
 
   // Calculate change based on range
-  const baselineValue = data[0]?.value || 0;
+  const effectiveBaseline = baselineValue !== undefined ? baselineValue : data[0]?.value || 0;
   const lastValue = data[data.length - 1]?.value || 0;
-  const change = lastValue - baselineValue;
-  const changePercent = baselineValue > 0 ? (change / baselineValue) * 100 : 0;
+  const change = lastValue - effectiveBaseline;
+  const changePercent = effectiveBaseline > 0 ? (change / effectiveBaseline) * 100 : 0;
   const isPositive = change >= 0;
 
   const formatter = new Intl.NumberFormat(undefined, {

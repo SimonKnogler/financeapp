@@ -386,6 +386,7 @@ export default function PortfolioPage() {
         <PortfolioChart 
           portfolioHistory={portfolioHistory.filter(s => s.owner === activeTab)} 
           currentValue={investmentValue} 
+          baselineValue={totalCost > 0 ? totalCost : undefined}
           height={280} 
         />
       </div>
