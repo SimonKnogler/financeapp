@@ -58,16 +58,16 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
     }
     const startDateStr = startDate.toISOString().split('T')[0];
     
-    // Filter snapshots based on range and use investmentValue (excluding cash)
+    // Filter snapshots based on range using total portfolio value
     const filteredSnapshots = portfolioHistory
       .filter((snapshot) => snapshot.dateISO >= startDateStr)
       .map((snapshot) => ({
         date: snapshot.dateISO,
-        value: snapshot.investmentValue, // Use investment value only, excluding cash
+        value: snapshot.totalValue, // Use total portfolio value (investments + cash)
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Always include today's current investment value
+    // Always include today's current total value
     const todayIndex = filteredSnapshots.findIndex(s => s.date === todayStr);
     if (todayIndex >= 0) {
       filteredSnapshots[todayIndex].value = currentValue;
@@ -174,7 +174,7 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
               border: "1px solid #ccc",
               borderRadius: "4px",
             }}
-            formatter={(value: any) => [privacyMode ? "•••••" : formatter.format(value), "Investment Value"]}
+            formatter={(value: any) => [privacyMode ? "•••••" : formatter.format(value), "Portfolio Value"]}
             labelFormatter={(label) => new Date(label).toLocaleDateString()}
           />
           <Line
