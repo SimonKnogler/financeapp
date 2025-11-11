@@ -227,7 +227,7 @@ export const useFinanceStore = create<FinanceStore>()(
     }),
     {
       name: "finance-app-v1",
-      version: 8, // Incremented for income owner support
+      version: 9, // v9 clears legacy portfolio history for new investment-only charts
       partialize: (state) => state,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
@@ -289,6 +289,13 @@ export const useFinanceStore = create<FinanceStore>()(
               ...income,
               owner: income.owner || "simon",
             })),
+          };
+        }
+        if (version < 9) {
+          // Clear historical portfolio snapshots so charts rebuild with investment-only data
+          persistedState = {
+            ...persistedState,
+            portfolioHistory: [],
           };
         }
         return persistedState;

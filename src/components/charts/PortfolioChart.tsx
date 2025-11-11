@@ -33,10 +33,6 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date(todayStr);
     
-    console.log('[PortfolioChart] portfolioHistory:', portfolioHistory.length, 'snapshots');
-    console.log('[PortfolioChart] currentValue:', currentValue);
-    console.log('[PortfolioChart] range:', range);
-    
     // Calculate date range based on selection
     const startDate = new Date(today);
     switch (range) {
@@ -67,11 +63,9 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
       .filter((snapshot) => snapshot.dateISO >= startDateStr)
       .map((snapshot) => ({
         date: snapshot.dateISO,
-        value: snapshot.totalValue, // Use total portfolio value (investments + cash)
+        value: snapshot.investmentValue, // Only track invested assets (exclude cash)
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-
-    console.log('[PortfolioChart] filteredSnapshots:', filteredSnapshots);
 
     // Always include today's current total value
     const todayIndex = filteredSnapshots.findIndex(s => s.date === todayStr);
@@ -81,8 +75,6 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
       filteredSnapshots.push({ date: todayStr, value: currentValue });
       filteredSnapshots.sort((a, b) => a.date.localeCompare(b.date));
     }
-
-    console.log('[PortfolioChart] final data:', filteredSnapshots);
 
     return filteredSnapshots;
   }, [portfolioHistory, currentValue, range]);
@@ -182,7 +174,7 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
               border: "1px solid #ccc",
               borderRadius: "4px",
             }}
-            formatter={(value: any) => [privacyMode ? "•••••" : formatter.format(value), "Portfolio Value"]}
+            formatter={(value: any) => [privacyMode ? "•••••" : formatter.format(value), "Investment Value"]}
             labelFormatter={(label) => new Date(label).toLocaleDateString()}
           />
           <Line
