@@ -48,7 +48,7 @@ export default function ProjectionsPageV2() {
   const filteredStocks = activeTab === "total" 
     ? stocks 
     : stocks.filter(s => s.owner === activeTab);
-
+  
   // Load portfolio value and historical returns
   useEffect(() => {
     async function loadData() {

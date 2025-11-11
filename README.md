@@ -50,3 +50,19 @@ Navigate to **Portfolio** in the sidebar to:
 - Zustand + next-themes
 - Recharts, date-fns, zod
 
+### Sharing & Real-time Sync
+- Uses Supabase auth + a single `finance_documents` JSON row per user.
+- Every browser keeps an open realtime subscription; edits upload automatically (debounced) and propagate to other sessions.
+- Manual **Upload/Download** buttons remain for seeding the document or recovering after working offline.
+- To enable syncing:
+  1. Apply the SQL in `supabase-schema.sql` (ensures `finance_documents` table, RLS policy, trigger).
+  2. In Supabase dashboard, enable realtime replication for `public.finance_documents`.
+  3. Have both users sign in with the same Supabase account; leave the app open in each browser.
+- If a browser reports “No cloud data found yet”, trigger **Upload to Cloud** once to seed the shared document.
+
+### German Tax Calculator
+- Build multiple salaried/self-employment scenarios with adjustable bonuses, deductions, and social contributions.
+- Supports capital gains (Abgeltungsteuer), solidarity surcharge toggles, and optional church tax (default off).
+- Married splitting (Ehegattensplitting) included; compare scenarios side-by-side with annual/monthly net output.
+- All inputs are optional; the calculator stores scenarios locally and syncs through the cloud document.
+

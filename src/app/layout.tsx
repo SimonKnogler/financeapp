@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { RealtimeSyncListener } from "@/components/providers/RealtimeSyncListener";
 import "./globals.css";
 
 export default function RootLayout({
@@ -83,6 +84,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
+          <RealtimeSyncListener />
           <div className="flex h-screen overflow-hidden bg-zinc-50 dark:bg-zinc-950">
             <Sidebar />
             <div className="flex-1 flex flex-col overflow-hidden">

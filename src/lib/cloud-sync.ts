@@ -1,250 +1,112 @@
 import { supabase } from './supabase';
 import type { FinanceState } from '@/types/finance';
-import { v4 as uuidv4 } from 'uuid';
+import type { GermanTaxScenario } from '@/types/tax';
+import {
+  FinanceSyncDocument,
+  FinanceSyncState,
+  buildFinanceDocument,
+  deserializeFinanceDocument,
+  getFinanceSyncClientId,
+  sanitizeFinanceSyncState,
+} from '@/lib/sync/finance-sync-service';
 
-// Helper to convert old IDs to UUIDs
-function toUUID(id: string): string {
-  // If already a UUID, return as is
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-    return id;
-  }
-  // Otherwise generate a new UUID
-  return uuidv4();
-}
+let cachedDocument: FinanceSyncDocument | null = null;
+let lastUploadedHash: string | null = null;
 
-export async function uploadToCloud(data: FinanceState & { customAssetReturns: Record<string, number> }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Clear existing data for this user
-  await Promise.all([
-    supabase.from('stocks').delete().eq('user_id', user.id),
-    supabase.from('expenses').delete().eq('user_id', user.id),
-    supabase.from('incomes').delete().eq('user_id', user.id),
-    supabase.from('goals').delete().eq('user_id', user.id),
-    supabase.from('portfolio_snapshots').delete().eq('user_id', user.id),
-    supabase.from('custom_asset_returns').delete().eq('user_id', user.id),
-  ]);
-
-  // Upload stocks
-  if (data.stocks.length > 0) {
-    const stocksData = data.stocks.map(stock => ({
-      id: toUUID(stock.id),
-      user_id: user.id,
-      symbol: stock.symbol,
-      shares: stock.shares,
-      cost_basis: stock.costBasis,
-      purchase_date_iso: stock.purchaseDateISO,
-      type: stock.type || 'stock',
-      // Ensure owner is valid ('simon', 'carolina', or 'household')
-      owner: ['simon', 'carolina', 'household'].includes(stock.owner) ? stock.owner : 'simon',
-      goal_id: stock.goalId ? toUUID(stock.goalId) : null,
-      sparplan: stock.sparplan,
-    }));
-    const { error } = await supabase.from('stocks').insert(stocksData);
-    if (error) throw error;
-  }
-
-  // Upload expenses
-  if (data.expenses.length > 0) {
-    const expensesData = data.expenses.map(exp => ({
-      id: toUUID(exp.id),
-      user_id: user.id,
-      name: exp.name,
-      amount: exp.amount,
-      frequency: exp.frequency,
-      growth_annual: exp.growthAnnual,
-      start_date_iso: exp.startDateISO,
-      end_date_iso: exp.endDateISO,
-      // Ensure owner is valid ('simon', 'carolina', or 'household')
-      owner: ['simon', 'carolina', 'household'].includes(exp.owner) ? exp.owner : 'simon',
-    }));
-    const { error } = await supabase.from('expenses').insert(expensesData);
-    if (error) throw error;
-  }
-
-  // Upload incomes
-  if (data.incomes.length > 0) {
-    const incomesData = data.incomes.map(inc => ({
-      id: toUUID(inc.id),
-      user_id: user.id,
-      name: inc.name,
-      amount: inc.amount,
-      frequency: inc.frequency,
-      growth_annual: inc.growthAnnual,
-      start_date_iso: inc.startDateISO,
-      // Ensure owner is valid (only 'simon' or 'carolina' allowed for incomes)
-      owner: (inc.owner === 'simon' || inc.owner === 'carolina') ? inc.owner : 'simon',
-      allocations: inc.goalAllocations,
-    }));
-    const { error } = await supabase.from('incomes').insert(incomesData);
-    if (error) throw error;
-  }
-
-  // Upload goals
-  if (data.goals.length > 0) {
-    const goalsData = data.goals.map(goal => ({
-      id: toUUID(goal.id),
-      user_id: user.id,
-      name: goal.name,
-      target_amount: goal.targetAmount,
-      target_date_iso: goal.targetDateISO,
-      // Store color as empty string for now (database expects it)
-      color: '#3b82f6', // Default blue color
-    }));
-    const { error } = await supabase.from('goals').insert(goalsData);
-    if (error) throw error;
-  }
-
-  // Upload portfolio snapshots
-  if (data.portfolioHistory.length > 0) {
-    const snapshotsData = data.portfolioHistory.map(snap => ({
-      user_id: user.id,
-      date_iso: snap.dateISO,
-      total_value: snap.totalValue,
-      owner: snap.owner,
-      timestamp: snap.timestamp,
-    }));
-    const { error } = await supabase.from('portfolio_snapshots').insert(snapshotsData);
-    if (error) throw error;
-  }
-
-  // Upload assumptions
-  const { error: assumptionsError } = await supabase.from('assumptions').upsert({
-    user_id: user.id,
-    currency: data.assumptions.currency,
-    inflation_rate: data.assumptions.inflationAnnual,
-    tax_rate: data.assumptions.taxRateEffective,
-  });
-  if (assumptionsError) throw assumptionsError;
-
-  // Upload custom asset returns
-  const customReturnsEntries = Object.entries(data.customAssetReturns);
-  if (customReturnsEntries.length > 0) {
-    const customReturnsData = customReturnsEntries.map(([symbol, expectedReturn]) => ({
-      user_id: user.id,
-      symbol,
-      expected_return: expectedReturn,
-    }));
-    const { error } = await supabase.from('custom_asset_returns').upsert(customReturnsData);
-    if (error) throw error;
-  }
-
-  return { success: true };
-}
-
-export async function downloadFromCloud(): Promise<FinanceState & { customAssetReturns: Record<string, number> }> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Fetch all data
-  const [
-    { data: stocks, error: stocksError },
-    { data: expenses, error: expensesError },
-    { data: incomes, error: incomesError },
-    { data: goals, error: goalsError },
-    { data: snapshots, error: snapshotsError },
-    { data: assumptions, error: assumptionsError },
-    { data: customReturns, error: customReturnsError },
-  ] = await Promise.all([
-    supabase.from('stocks').select('*').eq('user_id', user.id),
-    supabase.from('expenses').select('*').eq('user_id', user.id),
-    supabase.from('incomes').select('*').eq('user_id', user.id),
-    supabase.from('goals').select('*').eq('user_id', user.id),
-    supabase.from('portfolio_snapshots').select('*').eq('user_id', user.id),
-    supabase.from('assumptions').select('*').eq('user_id', user.id).single(),
-    supabase.from('custom_asset_returns').select('*').eq('user_id', user.id),
-  ]);
-
-  if (stocksError) throw stocksError;
-  if (expensesError) throw expensesError;
-  if (incomesError) throw incomesError;
-  if (goalsError) throw goalsError;
-  if (snapshotsError) throw snapshotsError;
-  if (customReturnsError) throw customReturnsError;
-
-  // Transform data back to app format
+function toSyncState(
+  state: FinanceState & { customAssetReturns: Record<string, number>; taxScenarios?: GermanTaxScenario[] }
+): FinanceSyncState {
   return {
-    accounts: [],
-    stocks: (stocks || []).map(s => ({
-      id: s.id,
-      symbol: s.symbol,
-      shares: s.shares,
-      costBasis: s.cost_basis,
-      purchaseDateISO: s.purchase_date_iso,
-      type: s.type,
-      owner: s.owner,
-      goalId: s.goal_id,
-      sparplan: s.sparplan,
-    })),
-    expenses: (expenses || []).map(e => ({
-      id: e.id,
-      name: e.name,
-      amount: e.amount,
-      frequency: e.frequency,
-      growthAnnual: e.growth_annual,
-      startDateISO: e.start_date_iso,
-      endDateISO: e.end_date_iso,
-      owner: e.owner,
-    })),
-    incomes: (incomes || []).map(i => ({
-      id: i.id,
-      name: i.name,
-      amount: i.amount,
-      frequency: i.frequency,
-      growthAnnual: i.growth_annual,
-      startDateISO: i.start_date_iso,
-      owner: i.owner,
-      goalAllocations: i.allocations,
-    })),
-    goals: (goals || []).map(g => ({
-      id: g.id,
-      name: g.name,
-      targetAmount: g.target_amount,
-      currentAmount: 0, // Default value
-      targetDateISO: g.target_date_iso,
-      category: 'other' as const,
-      priority: 'medium' as const,
-      owner: 'simon' as const,
-    })),
-    portfolioHistory: (snapshots || []).map(s => ({
-      dateISO: s.date_iso,
-      totalValue: s.total_value,
-      cashValue: 0, // Not stored separately in database
-      investmentValue: s.total_value, // Assume all is investment for now
-      owner: s.owner,
-      timestamp: s.timestamp,
-    })),
-    assumptions: assumptions ? {
-      startDateISO: new Date().toISOString().split('T')[0],
-      projectionYears: 30,
-      currency: assumptions.currency,
-      inflationAnnual: assumptions.inflation_rate,
-      taxRateEffective: assumptions.tax_rate,
-    } : {
-      startDateISO: new Date().toISOString().split('T')[0],
-      projectionYears: 30,
-      currency: 'EUR',
-      inflationAnnual: 0.02,
-      taxRateEffective: 0.26,
-    },
-    customAssetReturns: (customReturns || []).reduce((acc, cr) => {
-      acc[cr.symbol] = cr.expected_return;
-      return acc;
-    }, {} as Record<string, number>),
-  };
+    ...state,
+    customAssetReturns: state.customAssetReturns ?? {},
+    taxScenarios: state.taxScenarios ?? [],
+  } as FinanceSyncState;
+}
+
+export async function uploadToCloud(
+  rawState: FinanceState & { customAssetReturns: Record<string, number> },
+  options?: { force?: boolean }
+): Promise<{ success: true; skipped: boolean; document: FinanceSyncDocument }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const clientId = getFinanceSyncClientId();
+  const document = buildFinanceDocument(toSyncState(rawState), clientId);
+
+  if (!options?.force && lastUploadedHash && lastUploadedHash === document.meta.hash) {
+    cachedDocument = document;
+    return { success: true, skipped: true, document };
+  }
+
+  const { error } = await supabase
+    .from('finance_documents')
+    .upsert({
+      user_id: user.id,
+      payload: document,
+      updated_at: document.meta.updatedAt,
+    });
+
+  if (error) throw error;
+
+  cachedDocument = document;
+  lastUploadedHash = document.meta.hash;
+
+  return { success: true, skipped: false, document };
+}
+
+export async function downloadFinanceDocument(): Promise<FinanceSyncDocument | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('finance_documents')
+    .select('payload')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data?.payload) {
+    return null;
+  }
+
+  const document = data.payload as FinanceSyncDocument;
+  cachedDocument = document;
+  lastUploadedHash = document.meta?.hash ?? null;
+
+  return document;
+}
+
+export async function downloadFromCloud(): Promise<(FinanceState & { customAssetReturns: Record<string, number> }) | null> {
+  const document = await downloadFinanceDocument();
+  if (!document) {
+    return null;
+  }
+  const state = deserializeFinanceDocument(document);
+  return sanitizeFinanceSyncState({
+    ...state,
+    customAssetReturns: state.customAssetReturns ?? {},
+  });
 }
 
 export async function getLastSyncTime(): Promise<Date | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const document = cachedDocument ?? (await downloadFinanceDocument());
+  if (!document) {
+    return null;
+  }
+  return document.meta?.updatedAt ? new Date(document.meta.updatedAt) : null;
+}
 
-  const { data } = await supabase
-    .from('assumptions')
-    .select('updated_at')
-    .eq('user_id', user.id)
-    .single();
+export function getCachedFinanceDocument(): FinanceSyncDocument | null {
+  return cachedDocument;
+}
 
-  return data?.updated_at ? new Date(data.updated_at) : null;
+export function resetCachedFinanceDocument() {
+  cachedDocument = null;
+  lastUploadedHash = null;
 }
 

@@ -73,5 +73,16 @@ export type Database = {
     tax_rate: number;
     updated_at: string;
   };
+  custom_asset_returns: {
+    user_id: string;
+    symbol: string;
+    expected_return: number;
+    updated_at: string;
+  };
+  finance_documents: {
+    user_id: string;
+    payload: any;
+    updated_at: string;
+  };
 };
 

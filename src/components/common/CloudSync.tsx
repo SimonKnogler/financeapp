@@ -22,14 +22,7 @@ export function CloudSync() {
   const customAssetReturns = useFinanceStore((s) => s.customAssetReturns);
   
   // Get store actions
-  const addStock = useFinanceStore((s) => s.addStock);
-  const addExpense = useFinanceStore((s) => s.addExpense);
-  const addIncome = useFinanceStore((s) => s.addIncome);
-  const addGoal = useFinanceStore((s) => s.addGoal);
-  const addPortfolioSnapshot = useFinanceStore((s) => s.addPortfolioSnapshot);
-  const setAssumptions = useFinanceStore((s) => s.setAssumptions);
-  const setCustomAssetReturn = useFinanceStore((s) => s.setCustomAssetReturn);
-  const resetAll = useFinanceStore((s) => s.resetAll);
+  const replaceWithCloudData = useFinanceStore((s) => s.replaceWithCloudData);
 
   async function checkLastSync() {
     try {
@@ -49,7 +42,7 @@ export function CloudSync() {
     setMessage(null);
 
     try {
-      await uploadToCloud({
+      const result = await uploadToCloud({
         accounts,
         stocks,
         expenses,
@@ -59,8 +52,12 @@ export function CloudSync() {
         assumptions,
         customAssetReturns,
       });
-      setMessage({ type: "success", text: "✅ Data uploaded to cloud successfully!" });
-      checkLastSync();
+      if (result.skipped) {
+        setMessage({ type: "success", text: "ℹ️ No changes detected — cloud data already up to date." });
+      } else {
+        setMessage({ type: "success", text: "✅ Data uploaded to cloud successfully!" });
+        checkLastSync();
+      }
     } catch (error: any) {
       setMessage({ type: "error", text: `❌ Upload failed: ${error.message}` });
     } finally {
@@ -78,27 +75,14 @@ export function CloudSync() {
 
     try {
       const cloudData = await downloadFromCloud();
-      
-      // Reset store with cloud data
-      resetAll();
-      
-      // Populate with cloud data
-      cloudData.stocks.forEach(stock => addStock(stock as any));
-      cloudData.expenses.forEach(expense => addExpense(expense as any));
-      cloudData.incomes.forEach(income => addIncome(income as any));
-      cloudData.goals.forEach(goal => addGoal(goal as any));
-      cloudData.portfolioHistory.forEach(snap => addPortfolioSnapshot(snap as any));
-      setAssumptions(cloudData.assumptions);
-      
-      // Set custom returns
-      Object.entries(cloudData.customAssetReturns).forEach(([symbol, expectedReturn]) => {
-        setCustomAssetReturn(symbol, expectedReturn);
-      });
-
-      setMessage({ type: "success", text: "✅ Data downloaded from cloud successfully!" });
-      
-      // Reload page to ensure everything is fresh
-      setTimeout(() => window.location.reload(), 1500);
+ 
+      if (!cloudData) {
+        setMessage({ type: "error", text: "⚠️ No cloud data found yet. Upload from one device to create it." });
+      } else {
+        replaceWithCloudData(cloudData);
+        setMessage({ type: "success", text: "✅ Data downloaded from cloud successfully!" });
+        checkLastSync();
+      }
     } catch (error: any) {
       setMessage({ type: "error", text: `❌ Download failed: ${error.message}` });
     } finally {
@@ -115,10 +99,10 @@ export function CloudSync() {
 
       <div className="text-xs text-zinc-500 dark:text-zinc-400">
         <p className="mb-2">
-          💡 Sync your data to share it with your partner. Both of you should use the same login account.
+          🔄 Changes now sync in real time for everyone using the same account. Keep both browsers open and edits will appear automatically.
         </p>
         <p>
-          <strong>How it works:</strong> Upload saves your current data to the cloud. Download loads the cloud data to your device.
+          <strong>Manual actions:</strong> Upload immediately pushes your current data to the cloud. Download is still available as a force-refresh if you were offline.
         </p>
       </div>
 

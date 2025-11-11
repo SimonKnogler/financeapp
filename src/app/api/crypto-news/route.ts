@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (error.name === 'AbortError') {
       console.warn(`Crypto news timeout for ${symbol}`);
     } else {
-      console.error(`Error fetching crypto news for ${symbol}:`, error);
+    console.error(`Error fetching crypto news for ${symbol}:`, error);
     }
     return NextResponse.json({ news: [] });
   }

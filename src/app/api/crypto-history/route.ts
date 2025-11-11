@@ -15,42 +15,42 @@ export async function GET(request: NextRequest) {
   const symbolUpper = symbol.toUpperCase();
 
   // Map crypto symbols to CoinGecko IDs
-  const symbolMap: Record<string, string> = {
-    BTC: "bitcoin",
-    ETH: "ethereum",
-    USDT: "tether",
-    BNB: "binancecoin",
-    SOL: "solana",
-    XRP: "ripple",
-    USDC: "usd-coin",
-    ADA: "cardano",
-    DOGE: "dogecoin",
-    AVAX: "avalanche-2",
-    DOT: "polkadot",
-    MATIC: "matic-network",
-    LINK: "chainlink",
-    UNI: "uniswap",
-    LTC: "litecoin",
-    ATOM: "cosmos",
-    ETC: "ethereum-classic",
-    XLM: "stellar",
-    ALGO: "algorand",
-    VET: "vechain",
+    const symbolMap: Record<string, string> = {
+      BTC: "bitcoin",
+      ETH: "ethereum",
+      USDT: "tether",
+      BNB: "binancecoin",
+      SOL: "solana",
+      XRP: "ripple",
+      USDC: "usd-coin",
+      ADA: "cardano",
+      DOGE: "dogecoin",
+      AVAX: "avalanche-2",
+      DOT: "polkadot",
+      MATIC: "matic-network",
+      LINK: "chainlink",
+      UNI: "uniswap",
+      LTC: "litecoin",
+      ATOM: "cosmos",
+      ETC: "ethereum-classic",
+      XLM: "stellar",
+      ALGO: "algorand",
+      VET: "vechain",
     ICP: "internet-computer",
-  };
+    };
 
   const coinId = symbolMap[symbolUpper] || symbol.toLowerCase();
-
-  // Map range to days
-  const rangeDays: Record<string, string> = {
-    "1d": "1",
-    "5d": "5",
-    "1mo": "30",
-    "6mo": "180",
-    "1y": "365",
-    "5y": "1825",
-  };
-  const days = rangeDays[range] || range;
+    
+    // Map range to days
+    const rangeDays: Record<string, string> = {
+      "1d": "1",
+      "5d": "5",
+      "1mo": "30",
+      "6mo": "180",
+      "1y": "365",
+      "5y": "1825",
+    };
+    const days = rangeDays[range] || range;
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=eur&days=${days}`;

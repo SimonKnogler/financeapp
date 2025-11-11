@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addMonths, startOfMonth } from "date-fns";
 import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding } from "@/types/finance";
+import type { GermanTaxScenario } from "@/types/tax";
 
 function firstOfCurrentMonthISO(): string {
   const d = startOfMonth(new Date());
@@ -12,6 +13,36 @@ function firstOfCurrentMonthISO(): string {
 
 function generateId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+}
+
+function normalizeTaxScenario(input?: Partial<GermanTaxScenario>): GermanTaxScenario {
+  const currentYear = new Date().getFullYear();
+  return {
+    id: input?.id ?? generateId("tax"),
+    name: input?.name ?? "New Scenario",
+    year: input?.year ?? currentYear,
+    filingStatus: input?.filingStatus ?? "single",
+    taxClass: input?.taxClass,
+    salaryAnnual: input?.salaryAnnual,
+    bonusAnnual: input?.bonusAnnual,
+    otherEmploymentIncome: input?.otherEmploymentIncome,
+    selfEmploymentIncome: input?.selfEmploymentIncome,
+    capitalGains: input?.capitalGains,
+    capitalGainsAllowance: input?.capitalGainsAllowance ?? 1000,
+    deductibleExpenses: input?.deductibleExpenses,
+    specialExpenses: input?.specialExpenses,
+    extraordinaryBurden: input?.extraordinaryBurden,
+    additionalDeductions: input?.additionalDeductions,
+    socialHealthInsurance: input?.socialHealthInsurance,
+    socialPensionInsurance: input?.socialPensionInsurance,
+    socialUnemploymentInsurance: input?.socialUnemploymentInsurance,
+    socialCareInsurance: input?.socialCareInsurance,
+    includeSolidaritySurcharge: input?.includeSolidaritySurcharge ?? true,
+    includeChurchTax: input?.includeChurchTax ?? false,
+    churchTaxRate: input?.churchTaxRate ?? 0.08,
+    includeCapitalGainsTax: input?.includeCapitalGainsTax ?? true,
+    notes: input?.notes,
+  };
 }
 
 export interface FinanceStore extends FinanceState {
@@ -49,50 +80,19 @@ export interface FinanceStore extends FinanceState {
   setCustomAssetReturn: (symbol: string, expectedReturn: number) => void;
   clearCustomAssetReturn: (symbol: string) => void;
   resetAll: () => void;
+  replaceWithCloudData: (data: FinanceState & { customAssetReturns?: Record<string, number> }) => void;
+  cloudSyncToken: number;
+  taxScenarios: GermanTaxScenario[];
+  addTaxScenario: (scenario?: Partial<GermanTaxScenario>) => void;
+  updateTaxScenario: (id: string, updates: Partial<GermanTaxScenario>) => void;
+  removeTaxScenario: (id: string) => void;
+  duplicateTaxScenario: (id: string) => void;
 }
 
-const defaultState: FinanceState & { customAssetReturns: Record<string, number> } = {
+const defaultState: FinanceState & { customAssetReturns: Record<string, number>; taxScenarios: GermanTaxScenario[] } = {
   accounts: [],
-  incomes: [
-    {
-      id: "inc_salary",
-      name: "Salary",
-      amount: 5000,
-      frequency: "monthly",
-      startDateISO: firstOfCurrentMonthISO(),
-      growthAnnual: 0.03,
-      owner: "simon",
-    },
-  ],
-  expenses: [
-    {
-      id: "exp_rent",
-      name: "Rent",
-      amount: 1500,
-      frequency: "monthly",
-      startDateISO: firstOfCurrentMonthISO(),
-      growthAnnual: 0,
-      owner: "simon",
-    },
-    {
-      id: "exp_groceries",
-      name: "Groceries",
-      amount: 600,
-      frequency: "monthly",
-      startDateISO: firstOfCurrentMonthISO(),
-      growthAnnual: 0.02,
-      owner: "simon",
-    },
-    {
-      id: "exp_misc",
-      name: "Miscellaneous",
-      amount: 400,
-      frequency: "monthly",
-      startDateISO: firstOfCurrentMonthISO(),
-      growthAnnual: 0.02,
-      owner: "simon",
-    },
-  ],
+  incomes: [],
+  expenses: [],
   stocks: [], // Both stocks and crypto stored here
   portfolioHistory: [],
   goals: [],
@@ -104,6 +104,8 @@ const defaultState: FinanceState & { customAssetReturns: Record<string, number> 
     currency: "USD",
   },
   customAssetReturns: {}, // Persisted custom returns for projection calculations
+  cloudSyncToken: 0,
+  taxScenarios: [],
 };
 
 export const useFinanceStore = create<FinanceStore>()(
@@ -224,10 +226,55 @@ export const useFinanceStore = create<FinanceStore>()(
           return { customAssetReturns: rest };
         }),
       resetAll: () => set(() => ({ ...defaultState })),
+      replaceWithCloudData: (data) =>
+        set((state) => ({
+          accounts: data.accounts ?? [],
+          incomes: data.incomes ?? [],
+          expenses: data.expenses ?? [],
+          stocks: data.stocks ?? [],
+          portfolioHistory: (data.portfolioHistory ?? []).map((snapshot) => ({
+            ...snapshot,
+            timestamp: snapshot.timestamp ?? Date.now(),
+          })),
+          goals: data.goals ?? [],
+          assumptions: data.assumptions ? { ...state.assumptions, ...data.assumptions } : state.assumptions,
+          customAssetReturns: data.customAssetReturns ?? {},
+          cloudSyncToken: Date.now(),
+          taxScenarios: Array.isArray((data as any).taxScenarios)
+            ? ((data as any).taxScenarios as Partial<GermanTaxScenario>[]).map((scenario) => normalizeTaxScenario(scenario))
+            : state.taxScenarios ?? [],
+        })),
+      addTaxScenario: (scenario) =>
+        set((state) => ({
+          taxScenarios: [...state.taxScenarios, normalizeTaxScenario(scenario)],
+        })),
+      updateTaxScenario: (id, updates) =>
+        set((state) => ({
+          taxScenarios: state.taxScenarios.map((scenario) =>
+            scenario.id === id ? normalizeTaxScenario({ ...scenario, ...updates, id: scenario.id }) : scenario
+          ),
+        })),
+      removeTaxScenario: (id) =>
+        set((state) => ({
+          taxScenarios: state.taxScenarios.filter((scenario) => scenario.id !== id),
+        })),
+      duplicateTaxScenario: (id) =>
+        set((state) => {
+          const scenario = state.taxScenarios.find((s) => s.id === id);
+          if (!scenario) {
+            return {} as Partial<FinanceStore>;
+          }
+          const clone = normalizeTaxScenario({
+            ...scenario,
+            id: undefined,
+            name: `${scenario.name} (Copy)`,
+          });
+          return { taxScenarios: [...state.taxScenarios, clone] };
+        }),
     }),
     {
       name: "finance-app-v1",
-      version: 9, // v9 clears legacy portfolio history for new investment-only charts
+      version: 11, // v11 adds tax scenarios to store
       partialize: (state) => state,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
@@ -296,6 +343,27 @@ export const useFinanceStore = create<FinanceStore>()(
           persistedState = {
             ...persistedState,
             portfolioHistory: [],
+          };
+        }
+        if (version < 10) {
+          const defaultExpenseIds = new Set(["exp_rent", "exp_groceries", "exp_misc"]);
+          const defaultIncomeIds = new Set(["inc_salary"]);
+
+          const expenses = persistedState.expenses || [];
+          const incomes = persistedState.incomes || [];
+
+          persistedState = {
+            ...persistedState,
+            expenses: expenses.filter((expense: any) => !defaultExpenseIds.has(expense.id)),
+            incomes: incomes.filter((income: any) => !defaultIncomeIds.has(income.id)),
+          };
+        }
+        if (version < 11) {
+          persistedState = {
+            ...persistedState,
+            taxScenarios: (persistedState.taxScenarios || []).map((scenario: Partial<GermanTaxScenario>) =>
+              normalizeTaxScenario(scenario)
+            ),
           };
         }
         return persistedState;

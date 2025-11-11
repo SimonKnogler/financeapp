@@ -33,7 +33,7 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
   const data = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date(todayStr);
-    
+
     // Calculate date range based on selection
     const startDate = new Date(today);
     switch (range) {
@@ -58,7 +58,7 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
         break;
     }
     const startDateStr = startDate.toISOString().split('T')[0];
-    
+
     // Filter snapshots based on range using total portfolio value
     let filteredSnapshots = portfolioHistory
       .filter((snapshot) => snapshot.dateISO >= startDateStr)

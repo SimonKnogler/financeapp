@@ -141,13 +141,13 @@ export function AssetReturnEditor({
                       )}
                     </div>
                     <div className="flex gap-1">
-                      <button
-                        onClick={() => startEdit(holding.symbol, expectedReturn)}
-                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
-                        title="Edit expected return"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
+                    <button
+                      onClick={() => startEdit(holding.symbol, expectedReturn)}
+                      className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                      title="Edit expected return"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
                       {hasCustomReturn && (
                         <button
                           onClick={() => resetToDefault(holding.symbol)}

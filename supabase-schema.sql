@@ -80,6 +80,12 @@ CREATE TABLE IF NOT EXISTS public.custom_asset_returns (
   PRIMARY KEY (user_id, symbol)
 );
 
+CREATE TABLE IF NOT EXISTS public.finance_documents (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  payload JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable Row Level Security
 ALTER TABLE public.stocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
@@ -88,6 +94,7 @@ ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portfolio_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assumptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.custom_asset_returns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.finance_documents ENABLE ROW LEVEL SECURITY;
 
 -- Create policies (users can only see their own data)
 CREATE POLICY "Users can view their own stocks" ON public.stocks
@@ -151,6 +158,9 @@ CREATE POLICY "Users can update their own custom returns" ON public.custom_asset
 CREATE POLICY "Users can delete their own custom returns" ON public.custom_asset_returns
   FOR DELETE USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can manage their own finance document" ON public.finance_documents
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 -- Create indexes for better performance
 CREATE INDEX idx_stocks_user_id ON public.stocks(user_id);
 CREATE INDEX idx_expenses_user_id ON public.expenses(user_id);
@@ -179,5 +189,7 @@ CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON public.goals
 CREATE TRIGGER update_assumptions_updated_at BEFORE UPDATE ON public.assumptions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_custom_returns_updated_at BEFORE UPDATE ON public.custom_asset_returns
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_finance_documents_updated_at BEFORE UPDATE ON public.finance_documents
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

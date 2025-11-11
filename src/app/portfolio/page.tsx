@@ -98,7 +98,7 @@ export default function PortfolioPage() {
         throw error;
       }
     };
-
+    
     // Fetch prices and news for each asset based on type
     await Promise.all(
       stocks.map(async (stock) => {
@@ -330,13 +330,13 @@ export default function PortfolioPage() {
           >
             Reset Cost Basis
           </button>
-          <button
-            onClick={() => refreshPrices(true)}
-            disabled={loading}
-            className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
-          >
-            {loading ? "Refreshing..." : "Refresh Prices"}
-          </button>
+        <button
+          onClick={() => refreshPrices(true)}
+          disabled={loading}
+          className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+        >
+          {loading ? "Refreshing..." : "Refresh Prices"}
+        </button>
         </div>
       </div>
 

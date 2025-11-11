@@ -68,14 +68,14 @@ export async function GET(request: NextRequest) {
     const eurPrice = data[coinGeckoId].eur;
     const changePercent24Hr = data[coinGeckoId].eur_24h_change || 0;
 
-    return NextResponse.json({
+        return NextResponse.json({
       symbol: symbolUpper,
-      price: eurPrice,
-      currency: "EUR",
-      timestamp: Date.now(),
-      change24h: changePercent24Hr,
+          price: eurPrice,
+          currency: "EUR",
+          timestamp: Date.now(),
+          change24h: changePercent24Hr,
       source: "coingecko",
-    });
+        });
   } catch (error: any) {
     console.error(`Error fetching crypto price for ${symbol}:`, error.message || error);
     return NextResponse.json(
