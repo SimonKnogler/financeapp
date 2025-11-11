@@ -382,10 +382,10 @@ export default function PortfolioPage() {
 
       {/* Portfolio Performance Chart */}
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-        <div className="mb-3 font-semibold">Portfolio Performance</div>
+        <div className="mb-3 font-semibold">Investment Performance (excl. Cash)</div>
         <PortfolioChart 
           portfolioHistory={portfolioHistory.filter(s => s.owner === activeTab)} 
-          currentValue={totalValue} 
+          currentValue={investmentValue} 
           height={280} 
         />
       </div>
