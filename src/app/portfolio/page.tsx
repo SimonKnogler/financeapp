@@ -137,15 +137,8 @@ export default function PortfolioPage() {
               priceMap.set(stock.symbol.toUpperCase(), priceData);
             }
           } else {
-            // Price fetch failed - set error state
+            // Price fetch failed - log but don't add to map (will show "Error" in UI)
             console.error(`Failed to fetch price for ${stock.symbol}: ${priceRes.status}`);
-            priceMap.set(stock.symbol.toUpperCase(), {
-              symbol: stock.symbol.toUpperCase(),
-              price: 0,
-              currency: "EUR",
-              timestamp: Date.now(),
-              error: true,
-            } as any);
           }
           
           // Fetch news (ETFs use same endpoint as stocks, no news for cash)
@@ -605,14 +598,14 @@ export default function PortfolioPage() {
                   <td className="p-2 text-right">
                     {assetType === "cash" ? (
                       <span className="text-zinc-500">Cash</span>
-                    ) : price ? (
-                      (price as any).error ? (
-                        <span className="text-red-500 dark:text-red-400">Error</span>
-                      ) : (
-                        formatCurrencyDetailed(currentPrice, "EUR", privacyMode)
-                      )
-                    ) : (
+                    ) : loading ? (
                       <span className="text-zinc-400">Loading...</span>
+                    ) : price && currentPrice > 0 ? (
+                      formatCurrencyDetailed(currentPrice, "EUR", privacyMode)
+                    ) : (
+                      <span className="text-red-500 dark:text-red-400 text-xs" title="Failed to fetch price. Click 'Refresh Prices' to retry.">
+                        Error
+                      </span>
                     )}
                   </td>
                   <td className="p-2 text-right font-semibold">{formatCurrency(marketValue, "EUR", privacyMode)}</td>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -27,27 +27,57 @@ interface DataPoint {
 
 export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }: PortfolioChartProps) {
   const privacyMode = useFinanceStore((s) => s.privacyMode);
+  const [range, setRange] = useState("1mo");
 
   const data = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
     
-    // Only include snapshots from today onwards
-    const futureSnapshots = portfolioHistory
-      .filter((snapshot) => snapshot.dateISO >= todayStr && snapshot.dateISO !== todayStr)
+    // Calculate date range based on selection
+    const startDate = new Date(today);
+    switch (range) {
+      case "1d":
+        startDate.setDate(today.getDate() - 1);
+        break;
+      case "5d":
+        startDate.setDate(today.getDate() - 5);
+        break;
+      case "1mo":
+        startDate.setMonth(today.getMonth() - 1);
+        break;
+      case "6mo":
+        startDate.setMonth(today.getMonth() - 6);
+        break;
+      case "1y":
+        startDate.setFullYear(today.getFullYear() - 1);
+        break;
+      case "all":
+        // Show all data
+        startDate.setFullYear(2000);
+        break;
+    }
+    const startDateStr = startDate.toISOString().split('T')[0];
+    
+    // Filter snapshots based on range
+    const filteredSnapshots = portfolioHistory
+      .filter((snapshot) => snapshot.dateISO >= startDateStr)
       .map((snapshot) => ({
         date: snapshot.dateISO,
         value: snapshot.totalValue,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Start with today's value as baseline
-    const result = [{ date: todayStr, value: currentValue }];
-    
-    // Add any future snapshots
-    result.push(...futureSnapshots);
+    // Always include today's current value
+    const todayIndex = filteredSnapshots.findIndex(s => s.date === todayStr);
+    if (todayIndex >= 0) {
+      filteredSnapshots[todayIndex].value = currentValue;
+    } else {
+      filteredSnapshots.push({ date: todayStr, value: currentValue });
+      filteredSnapshots.sort((a, b) => a.date.localeCompare(b.date));
+    }
 
-    return result;
-  }, [portfolioHistory, currentValue]);
+    return filteredSnapshots;
+  }, [portfolioHistory, currentValue, range]);
 
   if (data.length === 0) {
     return (
@@ -57,7 +87,7 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
     );
   }
 
-  // Always use today's value (first data point) as the baseline
+  // Calculate change based on range
   const baselineValue = data[0]?.value || 0;
   const lastValue = data[data.length - 1]?.value || 0;
   const change = lastValue - baselineValue;
@@ -70,6 +100,15 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
+
+  const ranges = [
+    { label: "1D", value: "1d" },
+    { label: "5D", value: "5d" },
+    { label: "1M", value: "1mo" },
+    { label: "6M", value: "6mo" },
+    { label: "1Y", value: "1y" },
+    { label: "All", value: "all" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -93,9 +132,21 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300 }:
               </>
             )}
           </div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Performance from today
-          </div>
+        </div>
+        <div className="flex gap-1">
+          {ranges.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => setRange(r.value)}
+              className={`px-2 py-1 text-xs rounded ${
+                range === r.value
+                  ? "bg-blue-500 text-white"
+                  : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </div>
 
