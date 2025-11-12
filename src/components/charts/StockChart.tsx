@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -10,6 +10,12 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+
+interface StockTooltipProps {
+  active?: boolean;
+  payload?: ReadonlyArray<{ value: number }>;
+  label?: string | number;
+}
 
 interface ChartDataPoint {
   date: string;
@@ -76,6 +82,74 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
     { label: "All", value: "max" },
   ];
 
+  const firstPrice = data[0]?.close || 0;
+  const lastPrice = data[data.length - 1]?.close || 0;
+  const change = lastPrice - firstPrice;
+  const isPositive = change >= 0;
+
+  const renderTooltip = useCallback(
+    (props: StockTooltipProps) => {
+      const { active, payload, label } = props;
+      if (!active || !payload || payload.length === 0) {
+        return null;
+      }
+
+      const value = payload[0]?.value ?? 0;
+
+      return (
+        <div
+          style={{
+            backgroundColor: "rgba(255, 255, 255, 0.98)",
+            border: "none",
+            borderRadius: "12px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            padding: "14px 16px",
+          }}
+        >
+          <div
+            style={{
+              color: "#52525b",
+              fontWeight: 600,
+              marginBottom: "6px",
+              fontSize: "13px",
+            }}
+          >
+            {(() => {
+              const date = new Date((label ?? "") as string);
+              if (range === "1d" || range === "5d") {
+                return date.toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                });
+              }
+              return date.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+            })()}
+          </div>
+          <div
+            style={{
+              color: isPositive ? "#10b981" : "#f43f5e",
+              fontWeight: 600,
+              fontSize: "14px",
+            }}
+          >
+            {new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency,
+              minimumFractionDigits: 2,
+            }).format(value as number)}
+          </div>
+        </div>
+      );
+    },
+    [currency, isPositive, range]
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
@@ -91,11 +165,6 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
       </div>
     );
   }
-
-  const firstPrice = data[0]?.close || 0;
-  const lastPrice = data[data.length - 1]?.close || 0;
-  const change = lastPrice - firstPrice;
-  const isPositive = change >= 0;
 
   return (
     <div className="space-y-3">
@@ -162,48 +231,8 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
             width={70}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: "rgba(255, 255, 255, 0.98)",
-              border: "none",
-              borderRadius: "12px",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-              padding: "14px 16px",
-            }}
-            itemStyle={{
-              color: isPositive ? "#10b981" : "#f43f5e",
-              fontWeight: "600",
-              fontSize: "14px",
-            }}
-            labelStyle={{
-              color: "#52525b",
-              fontWeight: "600",
-              marginBottom: "6px",
-              fontSize: "13px",
-            }}
-            formatter={(value: any) =>
-              [new Intl.NumberFormat(undefined, {
-                style: "currency",
-                currency,
-                minimumFractionDigits: 2,
-              }).format(value), "Price"]
-            }
-            labelFormatter={(label) => {
-              const date = new Date(label);
-              if (range === "1d" || range === "5d") {
-                return date.toLocaleString("en-US", { 
-                  month: "short", 
-                  day: "numeric", 
-                  hour: "numeric",
-                  minute: "2-digit"
-                });
-              }
-              return date.toLocaleDateString("en-US", { 
-                month: "short", 
-                day: "numeric", 
-                year: "numeric" 
-              });
-            }}
             cursor={{ stroke: isPositive ? "#10b981" : "#f43f5e", strokeWidth: 1, strokeDasharray: "4 4" }}
+            content={renderTooltip}
           />
           <Area
             type="monotone"

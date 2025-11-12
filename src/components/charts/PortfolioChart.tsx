@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -13,6 +13,13 @@ import {
 import { useFinanceStore } from "@/store/finance-store";
 import { formatCurrency } from "@/lib/privacy";
 import type { PortfolioSnapshot } from "@/types/finance";
+
+// Minimal tooltip props to keep TypeScript happy while accessing payload
+interface PortfolioTooltipProps {
+  active?: boolean;
+  payload?: ReadonlyArray<{ value: number }>;
+  label?: string | number;
+}
 
 interface PortfolioChartProps {
   portfolioHistory: PortfolioSnapshot[];
@@ -125,6 +132,52 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
     { label: "All", value: "all" },
   ];
 
+  const renderTooltip = useCallback(
+    (props: PortfolioTooltipProps) => {
+      const { active, payload, label } = props;
+      if (!active || !payload || payload.length === 0) {
+        return null;
+      }
+
+      const value = payload[0]?.value ?? 0;
+
+      return (
+        <div
+          style={{
+            backgroundColor: "rgba(255, 255, 255, 0.98)",
+            border: "none",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            padding: "12px",
+          }}
+        >
+          <div
+            style={{
+              color: "#52525b",
+              fontWeight: 500,
+              marginBottom: "4px",
+            }}
+          >
+            {new Date((label ?? "") as string).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </div>
+          <div
+            style={{
+              color: isPositive ? "#22c55e" : "#ef4444",
+              fontWeight: 600,
+            }}
+          >
+            {privacyMode ? "•••••" : formatter.format(value as number)}
+          </div>
+        </div>
+      );
+    },
+    [formatter, isPositive, privacyMode]
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -180,29 +233,8 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
             width={80}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: "rgba(255, 255, 255, 0.98)",
-              border: "none",
-              borderRadius: "8px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              padding: "12px",
-            }}
-            itemStyle={{
-              color: isPositive ? "#22c55e" : "#ef4444",
-              fontWeight: "600",
-            }}
-            labelStyle={{
-              color: "#52525b",
-              fontWeight: "500",
-              marginBottom: "4px",
-            }}
-            formatter={(value: any) => [privacyMode ? "•••••" : formatter.format(value), "Investment Value"]}
-            labelFormatter={(label) => new Date(label).toLocaleDateString("en-US", { 
-              month: "short", 
-              day: "numeric", 
-              year: "numeric" 
-            })}
             cursor={{ stroke: isPositive ? "#22c55e" : "#ef4444", strokeWidth: 1, strokeDasharray: "4 4" }}
+            content={renderTooltip}
           />
           <Area
             type="monotone"
