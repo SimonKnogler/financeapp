@@ -35,7 +35,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               console.log('Menu button clicked');
               onMenuClick();
             }}
-            className="md:hidden p-2 -ml-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md touch-manipulation"
+            className="p-2 -ml-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md touch-manipulation"
             aria-label="Open menu"
             type="button"
           >
