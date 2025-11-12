@@ -8,6 +8,7 @@ import { StockChart } from "@/components/charts/StockChart";
 import { PortfolioChart } from "@/components/charts/PortfolioChart";
 import { SparplanModal } from "@/components/portfolio/SparplanModal";
 import { SellModal } from "@/components/portfolio/SellModal";
+import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner } from "@/types/finance";
 
@@ -41,6 +42,7 @@ export default function PortfolioPage() {
   const [sparplanModalStock, setSparplanModalStock] = useState<StockHolding | null>(null);
   const [sellModalStock, setSellModalStock] = useState<{ stock: StockHolding; price: number } | null>(null);
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
+  const [showRevolutImport, setShowRevolutImport] = useState(false);
 
   function resetCostBasisToCurrentPrices() {
     if (!confirm("This will set the cost basis of all positions to their current market price. This action cannot be undone. Continue?")) {
@@ -322,6 +324,15 @@ export default function PortfolioPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Portfolio</h1>
         <div className="flex gap-2">
+          {activeTab !== "total" && (
+            <button
+              onClick={() => setShowRevolutImport(true)}
+              className="rounded-md border border-purple-200 dark:border-purple-800 px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+              title="Import positions from Revolut CSV"
+            >
+              Import Revolut
+            </button>
+          )}
           <button
             onClick={resetCostBasisToCurrentPrices}
             disabled={loading || stocks.filter(s => s.type !== "cash").length === 0}
@@ -784,6 +795,13 @@ export default function PortfolioPage() {
           stock={sellModalStock.stock}
           currentPrice={sellModalStock.price}
           onClose={() => setSellModalStock(null)}
+        />
+      )}
+
+      {showRevolutImport && (
+        <RevolutImport
+          owner={activeTab === "carolina" ? "carolina" : "simon"}
+          onClose={() => setShowRevolutImport(false)}
         />
       )}
 

@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
       case "5y":
         interval = "1wk"; // 1 week intervals for 5 years
         break;
+      case "max":
+        interval = "1mo"; // 1 month intervals for all-time
+        break;
       default:
         interval = "1d";
     }
