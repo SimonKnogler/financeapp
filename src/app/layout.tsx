@@ -18,6 +18,7 @@ export default function RootLayout({
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -110,8 +111,6 @@ export default function RootLayout({
   }
 
   // Authenticated users see the full layout with sidebar
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

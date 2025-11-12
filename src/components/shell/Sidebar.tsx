@@ -34,7 +34,8 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     if (mobileOpen && onMobileClose) {
       onMobileClose();
     }
-  }, [pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, mobileOpen]);
 
   const sidebarContent = (
     <>
