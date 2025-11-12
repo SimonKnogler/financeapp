@@ -85,6 +85,7 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
   const firstPrice = data[0]?.close || 0;
   const lastPrice = data[data.length - 1]?.close || 0;
   const change = lastPrice - firstPrice;
+  const changePercent = firstPrice > 0 ? (change / firstPrice) * 100 : 0;
   const isPositive = change >= 0;
 
   const renderTooltip = useCallback(
@@ -168,7 +169,18 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          className={`text-sm font-medium ${
+            isPositive ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+          }`}
+        >
+          {`${isPositive ? "+" : ""}${new Intl.NumberFormat(undefined, {
+            style: "currency",
+            currency,
+            minimumFractionDigits: 2,
+          }).format(change)} (${isPositive ? "+" : ""}${changePercent.toFixed(2)}%)`}
+        </div>
         <div className="flex gap-1">
           {ranges.map((r) => (
             <button
