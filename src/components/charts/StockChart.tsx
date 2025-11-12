@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -142,19 +142,38 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
       </div>
 
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ left: 0, right: 0, top: 5, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+        <AreaChart data={data} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`stockGradientGreen-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
+              <stop offset="50%" stopColor="#10b981" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={`stockGradientRed-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.5} />
+              <stop offset="50%" stopColor="#f43f5e" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="#f43f5e" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: "#71717a" }}
+            axisLine={false}
+            tickLine={false}
             tickFormatter={(value) => {
               const date = new Date(value);
+              if (range === "1d" || range === "5d") {
+                return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+              }
               return `${date.getMonth() + 1}/${date.getDate()}`;
             }}
             minTickGap={30}
           />
           <YAxis
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: "#71717a" }}
+            axisLine={false}
+            tickLine={false}
             domain={["auto", "auto"]}
             tickFormatter={(value) =>
               new Intl.NumberFormat(undefined, {
@@ -164,31 +183,63 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
                 maximumFractionDigits: 0,
               }).format(value)
             }
-            width={60}
+            width={70}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
+              backgroundColor: "rgba(255, 255, 255, 0.98)",
+              border: "none",
+              borderRadius: "12px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+              padding: "14px 16px",
+            }}
+            itemStyle={{
+              color: isPositive ? "#10b981" : "#f43f5e",
+              fontWeight: "600",
+              fontSize: "14px",
+            }}
+            labelStyle={{
+              color: "#52525b",
+              fontWeight: "600",
+              marginBottom: "6px",
+              fontSize: "13px",
             }}
             formatter={(value: any) =>
-              new Intl.NumberFormat(undefined, {
+              [new Intl.NumberFormat(undefined, {
                 style: "currency",
                 currency,
                 minimumFractionDigits: 2,
-              }).format(value)
+              }).format(value), "Price"]
             }
-            labelFormatter={(label) => new Date(label).toLocaleDateString()}
+            labelFormatter={(label) => {
+              const date = new Date(label);
+              if (range === "1d" || range === "5d") {
+                return date.toLocaleString("en-US", { 
+                  month: "short", 
+                  day: "numeric", 
+                  hour: "numeric",
+                  minute: "2-digit"
+                });
+              }
+              return date.toLocaleDateString("en-US", { 
+                month: "short", 
+                day: "numeric", 
+                year: "numeric" 
+              });
+            }}
+            cursor={{ stroke: isPositive ? "#10b981" : "#f43f5e", strokeWidth: 1, strokeDasharray: "4 4" }}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey="close"
-            stroke={isPositive ? "#22c55e" : "#ef4444"}
-            strokeWidth={2}
-            dot={false}
+            stroke={isPositive ? "#10b981" : "#f43f5e"}
+            strokeWidth={3}
+            fill={isPositive ? `url(#stockGradientGreen-${symbol})` : `url(#stockGradientRed-${symbol})`}
+            fillOpacity={1}
+            animationDuration={800}
+            animationEasing="ease-out"
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

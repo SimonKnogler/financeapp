@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -167,11 +167,25 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
       </div>
 
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ left: 0, right: 0, top: 5, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+        <AreaChart data={data} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+          <defs>
+            <linearGradient id="portfolioGradientGreen" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4} />
+              <stop offset="50%" stopColor="#22c55e" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#22c55e" stopOpacity={0.05} />
+            </linearGradient>
+            <linearGradient id="portfolioGradientRed" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
+              <stop offset="50%" stopColor="#ef4444" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: "#71717a" }}
+            axisLine={false}
+            tickLine={false}
             tickFormatter={(value) => {
               const date = new Date(value);
               return `${date.getMonth() + 1}/${date.getDate()}`;
@@ -179,28 +193,49 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
             minTickGap={30}
           />
           <YAxis
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: "#71717a" }}
+            axisLine={false}
+            tickLine={false}
             domain={["auto", "auto"]}
             tickFormatter={(value) => privacyMode ? "•••" : formatter.format(value)}
             width={80}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
+              backgroundColor: "rgba(255, 255, 255, 0.98)",
+              border: "none",
+              borderRadius: "8px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              padding: "12px",
+            }}
+            itemStyle={{
+              color: isPositive ? "#22c55e" : "#ef4444",
+              fontWeight: "600",
+            }}
+            labelStyle={{
+              color: "#52525b",
+              fontWeight: "500",
+              marginBottom: "4px",
             }}
             formatter={(value: any) => [privacyMode ? "•••••" : formatter.format(value), "Investment Value"]}
-            labelFormatter={(label) => new Date(label).toLocaleDateString()}
+            labelFormatter={(label) => new Date(label).toLocaleDateString("en-US", { 
+              month: "short", 
+              day: "numeric", 
+              year: "numeric" 
+            })}
+            cursor={{ stroke: isPositive ? "#22c55e" : "#ef4444", strokeWidth: 1, strokeDasharray: "4 4" }}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey="value"
             stroke={isPositive ? "#22c55e" : "#ef4444"}
-            strokeWidth={2}
-            dot={false}
+            strokeWidth={3}
+            fill={isPositive ? "url(#portfolioGradientGreen)" : "url(#portfolioGradientRed)"}
+            fillOpacity={1}
+            animationDuration={800}
+            animationEasing="ease-out"
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

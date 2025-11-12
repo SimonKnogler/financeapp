@@ -52,27 +52,83 @@ export function CashFlowChart({
   return (
     <div className="w-full">
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
-          <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={36} />
+        <BarChart data={chartData} margin={{ left: 8, right: 8, top: 12, bottom: 8 }} barGap={2}>
+          <defs>
+            <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#10b981" stopOpacity={0.7} />
+            </linearGradient>
+            <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.7} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
+          <XAxis 
+            dataKey="label" 
+            tick={{ fontSize: 11, fill: "#71717a" }} 
+            axisLine={false}
+            tickLine={false}
+            minTickGap={36} 
+          />
           <YAxis
-            tick={{ fontSize: 12 }}
+            tick={{ fontSize: 11, fill: "#71717a" }}
+            axisLine={false}
+            tickLine={false}
             tickFormatter={(v) => formatCurrencyShort(v, currency)}
             width={72}
           />
           <Tooltip
+            contentStyle={{
+              backgroundColor: "rgba(255, 255, 255, 0.98)",
+              border: "none",
+              borderRadius: "12px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+              padding: "14px 16px",
+            }}
+            itemStyle={{
+              fontWeight: "600",
+              fontSize: "14px",
+            }}
+            labelStyle={{
+              color: "#52525b",
+              fontWeight: "600",
+              marginBottom: "6px",
+              fontSize: "13px",
+            }}
             formatter={(value) =>
-              new Intl.NumberFormat(undefined, {
+              [new Intl.NumberFormat(undefined, {
                 style: "currency",
                 currency,
                 maximumFractionDigits: 0,
-              }).format(value as number)
+              }).format(value as number)]
             }
             labelFormatter={(label) => label}
+            cursor={{ fill: "rgba(59, 130, 246, 0.08)" }}
           />
-          <Legend />
-          <Bar dataKey="income" fill="#22c55e" name="Income" />
-          <Bar dataKey="expenses" fill="#ef4444" name="Expenses+Taxes" />
+          <Legend 
+            wrapperStyle={{
+              paddingTop: "12px",
+              fontSize: "13px",
+              fontWeight: "500",
+            }}
+          />
+          <Bar 
+            dataKey="income" 
+            fill="url(#incomeGradient)" 
+            name="Income" 
+            radius={[6, 6, 0, 0]}
+            animationDuration={800}
+            animationEasing="ease-out"
+          />
+          <Bar 
+            dataKey="expenses" 
+            fill="url(#expenseGradient)" 
+            name="Expenses+Taxes" 
+            radius={[6, 6, 0, 0]}
+            animationDuration={800}
+            animationEasing="ease-out"
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
