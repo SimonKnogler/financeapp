@@ -31,9 +31,13 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       <div className="flex items-center gap-3">
         {onMenuClick && (
           <button
-            onClick={onMenuClick}
+            onClick={() => {
+              console.log('Menu button clicked');
+              onMenuClick();
+            }}
             className="md:hidden p-2 -ml-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md touch-manipulation"
             aria-label="Open menu"
+            type="button"
           >
             <Menu className="h-5 w-5" />
           </button>
