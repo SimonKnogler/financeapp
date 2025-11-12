@@ -79,6 +79,7 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
     { label: "6M", value: "6mo" },
     { label: "1Y", value: "1y" },
     { label: "5Y", value: "5y" },
+    { label: "All", value: "max" },
   ];
 
   if (loading) {

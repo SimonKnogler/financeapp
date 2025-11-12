@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       "6mo": "180",
       "1y": "365",
       "5y": "1825",
+      "max": "max",
     };
     const days = rangeDays[range] || range;
 
