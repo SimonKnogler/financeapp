@@ -21,10 +21,6 @@ export default function RootLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    console.log('Mobile menu state:', mobileMenuOpen);
-  }, [mobileMenuOpen]);
-
-  useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch((err) => {
         console.error('Service Worker registration failed:', err);

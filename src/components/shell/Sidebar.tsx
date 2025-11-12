@@ -29,17 +29,13 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { privacyMode, togglePrivacyMode } = useFinanceStore();
   
-  useEffect(() => {
-    console.log('Sidebar mobileOpen:', mobileOpen);
-  }, [mobileOpen]);
-  
   // Close mobile menu on route change
   useEffect(() => {
     if (mobileOpen && onMobileClose) {
       onMobileClose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, mobileOpen]);
+  }, [pathname]);
 
   const sidebarContent = (
     <>

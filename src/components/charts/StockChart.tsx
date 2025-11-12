@@ -55,12 +55,6 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
         const result = await response.json();
         const chartData = result.data || [];
         
-        console.log(`StockChart: Loaded ${chartData.length} data points for ${symbol} (${range})`);
-        if (chartData.length > 0) {
-          console.log(`First data point:`, chartData[0]);
-          console.log(`Last data point:`, chartData[chartData.length - 1]);
-        }
-        
         setData(chartData);
         setCurrency(result.currency || "EUR");
       } catch (error) {
@@ -101,30 +95,11 @@ export function StockChart({ symbol, type, height = 300 }: StockChartProps) {
   const firstPrice = data[0]?.close || 0;
   const lastPrice = data[data.length - 1]?.close || 0;
   const change = lastPrice - firstPrice;
-  const changePercent = firstPrice > 0 ? (change / firstPrice) * 100 : 0;
   const isPositive = change >= 0;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-2xl font-semibold">
-            {new Intl.NumberFormat(undefined, {
-              style: "currency",
-              currency,
-              minimumFractionDigits: 2,
-            }).format(lastPrice)}
-          </div>
-          <div
-            className={`text-sm ${
-              isPositive ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-            }`}
-          >
-            {isPositive ? "+" : ""}
-            {change.toFixed(2)} ({isPositive ? "+" : ""}
-            {changePercent.toFixed(2)}%)
-          </div>
-        </div>
+      <div className="flex justify-end">
         <div className="flex gap-1">
           {ranges.map((r) => (
             <button
