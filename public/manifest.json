@@ -1,7 +1,7 @@
 {
-  "name": "Finances App - Personal Finance Manager",
+  "name": "Finances - Portfolio Tracker",
   "short_name": "Finances",
-  "description": "Track your finances, portfolio, and goals with real-time updates",
+  "description": "Track your portfolio, expenses, and financial goals",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -12,28 +12,30 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable any"
     }
   ],
   "categories": ["finance", "productivity"],
-  "screenshots": [
+  "shortcuts": [
     {
-      "src": "/screenshot-mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow"
+      "name": "Portfolio",
+      "short_name": "Portfolio",
+      "description": "View your portfolio",
+      "url": "/portfolio",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "src": "/screenshot-desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
+      "name": "Expenses",
+      "short_name": "Expenses",
+      "description": "Track expenses",
+      "url": "/expenses",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

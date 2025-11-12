@@ -485,7 +485,7 @@ export default function PortfolioPage() {
       {activeTab !== "total" && (
         <form
           onSubmit={onAdd}
-          className="grid grid-cols-1 md:grid-cols-6 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4"
         >
         <select
           value={assetType}
@@ -553,21 +553,22 @@ export default function PortfolioPage() {
       )}
 
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 dark:bg-zinc-900/50">
-            <tr>
-              <th className="text-left p-2">Type</th>
-              <th className="text-left p-2">Symbol</th>
-              <th className="text-right p-2">Shares</th>
-              <th className="text-right p-2">Cost Basis</th>
-              <th className="text-right p-2">Current Price</th>
-              <th className="text-right p-2">Market Value</th>
-              <th className="text-right p-2">Gain/Loss</th>
-              <th className="text-left p-2">Goal</th>
-              <th className="text-left p-2">Purchase Date</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[1000px]">
+            <thead className="bg-zinc-50 dark:bg-zinc-900/50">
+              <tr>
+                <th className="text-left p-2 sticky left-0 bg-zinc-50 dark:bg-zinc-900/50 z-10">Type</th>
+                <th className="text-left p-2 sticky left-[60px] bg-zinc-50 dark:bg-zinc-900/50 z-10">Symbol</th>
+                <th className="text-right p-2">Shares</th>
+                <th className="text-right p-2">Cost Basis</th>
+                <th className="text-right p-2">Current Price</th>
+                <th className="text-right p-2">Market Value</th>
+                <th className="text-right p-2">Gain/Loss</th>
+                <th className="text-left p-2">Goal</th>
+                <th className="text-left p-2">Purchase Date</th>
+                <th className="p-2"></th>
+              </tr>
+            </thead>
           <tbody>
             {filteredStocks.map((stock) => {
               // Default type to "stock" if missing (for old data)
@@ -587,7 +588,7 @@ export default function PortfolioPage() {
 
               return (
                 <tr key={stock.id} className="border-t border-zinc-200 dark:border-zinc-800">
-                  <td className="p-2">
+                  <td className="p-2 sticky left-0 bg-white dark:bg-zinc-900 z-10">
                     <span className={`text-xs px-2 py-1 rounded ${
                       assetType === "crypto" 
                         ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" 
@@ -600,7 +601,7 @@ export default function PortfolioPage() {
                       {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
                     </span>
                   </td>
-                  <td className="p-2 font-mono font-semibold">{stock.symbol}</td>
+                  <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">{stock.symbol}</td>
                   <td className="p-2 text-right">
                     {assetType === "cash" ? "-" : formatNumber(stock.shares, privacyMode)}
                   </td>
@@ -698,6 +699,7 @@ export default function PortfolioPage() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {filteredStocks.length > 0 && (

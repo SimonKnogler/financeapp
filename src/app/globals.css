@@ -27,14 +27,40 @@ body {
   -moz-osx-font-smoothing: grayscale;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
 * {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Mobile-specific optimizations */
 @supports (-webkit-touch-callout: none) {
   body {
     min-height: -webkit-fill-available;
   }
+}
+
+/* Ensure buttons and interactive elements are touch-friendly */
+button, a, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Improve input behavior on iOS */
+input, textarea {
+  font-size: 16px; /* Prevents zoom on iOS */
+}
+
+/* Smooth scrolling on mobile */
+@media (max-width: 768px) {
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Fix viewport height on mobile browsers */
+.h-screen {
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
 }

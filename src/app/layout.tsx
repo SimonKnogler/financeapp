@@ -110,6 +110,8 @@ export default function RootLayout({
   }
 
   // Authenticated users see the full layout with sidebar
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -127,9 +129,12 @@ export default function RootLayout({
         <ThemeProvider>
           <RealtimeSyncListener />
           <div className="flex h-screen overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-            <Sidebar />
+            <Sidebar 
+              mobileOpen={mobileMenuOpen} 
+              onMobileClose={() => setMobileMenuOpen(false)} 
+            />
             <div className="flex-1 flex flex-col overflow-hidden">
-              <Topbar />
+              <Topbar onMenuClick={() => setMobileMenuOpen(true)} />
               <main className="flex-1 overflow-y-auto p-4 md:p-6">
                 {children}
               </main>
