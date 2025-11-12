@@ -12,9 +12,12 @@ const CLIENT_ID_STORAGE_KEY = "finance-sync-client-id";
 
 export const FINANCE_SYNC_VERSION = 1;
 
-export type FinanceSyncState = import("@/types/finance").FinanceState & {
+import type { FinanceState, StoredDocument } from "@/types/finance";
+
+export type FinanceSyncState = FinanceState & {
   customAssetReturns: Record<string, number>;
   taxScenarios?: import("@/types/tax").GermanTaxScenario[];
+  documents?: StoredDocument[];
 };
 
 export type FinanceSyncData = FinanceSyncState;
@@ -71,10 +74,6 @@ function normaliseString(value: unknown): string | undefined {
   return undefined;
 }
 
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
 function normaliseAssumptions(
   assumptions: FinanceSyncState["assumptions"] | undefined
 ): FinanceSyncState["assumptions"] {
@@ -129,6 +128,14 @@ function sortSnapshots(
     }));
 }
 
+function sortDocumentsByDate(
+  documents: FinanceSyncState["documents"]
+): FinanceSyncState["documents"] {
+  return documents
+    .slice()
+    .sort((a, b) => new Date(b.uploadedAt ?? 0).getTime() - new Date(a.uploadedAt ?? 0).getTime());
+}
+
 function randomId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}_${crypto.randomUUID()}`;
@@ -165,6 +172,26 @@ function normaliseTaxScenario(
     churchTaxRate: normaliseNumber(scenario?.churchTaxRate) ?? 0.08,
     includeCapitalGainsTax: scenario?.includeCapitalGainsTax ?? true,
     notes: scenario?.notes,
+  };
+}
+
+function normaliseDocument(
+  document: Partial<StoredDocument> | undefined
+): StoredDocument {
+  return {
+    id: document?.id ?? randomId("doc"),
+    name: normaliseString(document?.name) ?? "Document",
+    size: normaliseNumber(document?.size) ?? 0,
+    storagePath: normaliseString(document?.storagePath) ?? "",
+    uploadedAt: normaliseString(document?.uploadedAt) ?? new Date().toISOString(),
+    uploadedById: normaliseString(document?.uploadedById) ?? "unknown",
+    uploadedByEmail: document?.uploadedByEmail ?? null,
+    description: normaliseString(document?.description),
+    tags: Array.isArray(document?.tags)
+      ? document.tags
+          .map((tag) => normaliseString(tag) ?? "")
+          .filter((tag): tag is string => Boolean(tag && tag.length > 0))
+      : undefined,
   };
 }
 
@@ -213,6 +240,8 @@ export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncDa
 
   const portfolioHistory = sortSnapshots(state.portfolioHistory ?? []);
 
+  const documents = sortDocumentsByDate((state.documents ?? []).map((document) => normaliseDocument(document)));
+
   const customAssetReturnsEntries = Object.entries(state.customAssetReturns ?? {})
     .filter(([, value]) => Number.isFinite(Number(value)))
     .map(([symbol, value]) => [symbol, Number(value)] as const)
@@ -233,6 +262,7 @@ export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncDa
     assumptions: normaliseAssumptions(state.assumptions),
     customAssetReturns,
     taxScenarios: sortById((state.taxScenarios ?? []).map((scenario) => normaliseTaxScenario(scenario))),
+    documents,
   } satisfies FinanceSyncData;
 }
 
@@ -288,6 +318,7 @@ export function deserializeFinanceDocument(document: FinanceSyncDocument): Finan
     ...data,
     customAssetReturns: data.customAssetReturns ?? {},
     taxScenarios: data.taxScenarios ?? [],
+    documents: data.documents ?? [],
   });
 }
 

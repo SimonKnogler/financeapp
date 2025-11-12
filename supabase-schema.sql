@@ -193,3 +193,17 @@ CREATE TRIGGER update_custom_returns_updated_at BEFORE UPDATE ON public.custom_a
 CREATE TRIGGER update_finance_documents_updated_at BEFORE UPDATE ON public.finance_documents
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Storage bucket for shared documents (idempotent)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('important-docs', 'important-docs', FALSE)
+ON CONFLICT (id) DO NOTHING;
+
+-- Enable RLS for storage objects
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to manage their own files within the bucket
+CREATE POLICY "Users can manage their document files" ON storage.objects
+  FOR ALL
+  USING (bucket_id = 'important-docs' AND auth.uid() = owner)
+  WITH CHECK (bucket_id = 'important-docs' AND auth.uid() = owner);
+

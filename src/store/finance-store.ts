@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addMonths, startOfMonth } from "date-fns";
-import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding } from "@/types/finance";
+import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding, StoredDocument } from "@/types/finance";
 import type { GermanTaxScenario } from "@/types/tax";
 
 function firstOfCurrentMonthISO(): string {
@@ -80,16 +80,31 @@ export interface FinanceStore extends FinanceState {
   setCustomAssetReturn: (symbol: string, expectedReturn: number) => void;
   clearCustomAssetReturn: (symbol: string) => void;
   resetAll: () => void;
-  replaceWithCloudData: (data: FinanceState & { customAssetReturns?: Record<string, number> }) => void;
+  replaceWithCloudData: (
+    data: FinanceState & {
+      customAssetReturns?: Record<string, number>;
+      taxScenarios?: Partial<GermanTaxScenario>[];
+      documents?: StoredDocument[];
+    }
+  ) => void;
   cloudSyncToken: number;
   taxScenarios: GermanTaxScenario[];
   addTaxScenario: (scenario?: Partial<GermanTaxScenario>) => void;
   updateTaxScenario: (id: string, updates: Partial<GermanTaxScenario>) => void;
   removeTaxScenario: (id: string) => void;
   duplicateTaxScenario: (id: string) => void;
+  // Documents
+  addDocument: (document: StoredDocument) => void;
+  updateDocument: (id: string, updates: Partial<StoredDocument>) => void;
+  removeDocument: (id: string) => void;
 }
 
-const defaultState: FinanceState & { customAssetReturns: Record<string, number>; taxScenarios: GermanTaxScenario[]; cloudSyncToken: number } = {
+const defaultState: FinanceState & {
+  customAssetReturns: Record<string, number>;
+  taxScenarios: GermanTaxScenario[];
+  cloudSyncToken: number;
+  documents: StoredDocument[];
+} = {
   accounts: [],
   incomes: [],
   expenses: [],
@@ -106,6 +121,7 @@ const defaultState: FinanceState & { customAssetReturns: Record<string, number>;
   customAssetReturns: {}, // Persisted custom returns for projection calculations
   cloudSyncToken: 0,
   taxScenarios: [],
+  documents: [],
 };
 
 export const useFinanceStore = create<FinanceStore>()(
@@ -240,9 +256,17 @@ export const useFinanceStore = create<FinanceStore>()(
           assumptions: data.assumptions ? { ...state.assumptions, ...data.assumptions } : state.assumptions,
           customAssetReturns: data.customAssetReturns ?? {},
           cloudSyncToken: Date.now(),
-          taxScenarios: Array.isArray((data as any).taxScenarios)
-            ? ((data as any).taxScenarios as Partial<GermanTaxScenario>[]).map((scenario) => normalizeTaxScenario(scenario))
+          taxScenarios: Array.isArray(data.taxScenarios)
+            ? data.taxScenarios.map((scenario) => normalizeTaxScenario(scenario))
             : state.taxScenarios ?? [],
+          documents: Array.isArray(data.documents)
+            ? data.documents
+                .map((doc) => ({
+                  ...doc,
+                  uploadedAt: doc.uploadedAt ?? new Date().toISOString(),
+                }))
+                .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+            : state.documents ?? [],
         })),
       addTaxScenario: (scenario) =>
         set((state) => ({
@@ -271,10 +295,26 @@ export const useFinanceStore = create<FinanceStore>()(
           });
           return { taxScenarios: [...state.taxScenarios, clone] };
         }),
+      addDocument: (document) =>
+        set((state) => ({
+          documents: [...state.documents, document].sort(
+            (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+          ),
+        })),
+      updateDocument: (id, updates) =>
+        set((state) => ({
+          documents: state.documents
+            .map((doc) => (doc.id === id ? { ...doc, ...updates } : doc))
+            .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()),
+        })),
+      removeDocument: (id) =>
+        set((state) => ({
+          documents: state.documents.filter((doc) => doc.id !== id),
+        })),
     }),
     {
       name: "finance-app-v1",
-      version: 11, // v11 adds tax scenarios to store
+      version: 12, // v12 adds shared documents storage metadata
       partialize: (state) => state,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
@@ -364,6 +404,12 @@ export const useFinanceStore = create<FinanceStore>()(
             taxScenarios: (persistedState.taxScenarios || []).map((scenario: Partial<GermanTaxScenario>) =>
               normalizeTaxScenario(scenario)
             ),
+          };
+        }
+        if (version < 12) {
+          persistedState = {
+            ...persistedState,
+            documents: [],
           };
         }
         return persistedState;

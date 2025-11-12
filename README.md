@@ -54,11 +54,17 @@ Navigate to **Portfolio** in the sidebar to:
 - Uses Supabase auth + a single `finance_documents` JSON row per user.
 - Every browser keeps an open realtime subscription; edits upload automatically (debounced) and propagate to other sessions.
 - Manual **Upload/Download** buttons remain for seeding the document or recovering after working offline.
-- To enable syncing:
+- To enable syncing & document storage:
   1. Apply the SQL in `supabase-schema.sql` (ensures `finance_documents` table, RLS policy, trigger).
   2. In Supabase dashboard, enable realtime replication for `public.finance_documents`.
   3. Have both users sign in with the same Supabase account; leave the app open in each browser.
+  4. The SQL script also creates a private Storage bucket named `important-docs`. If you created the bucket manually, make sure the same RLS policy is active.
 - If a browser reports “No cloud data found yet”, trigger **Upload to Cloud** once to seed the shared document.
+
+### Shared PDF Vault
+- Upload and manage important PDFs under **Documents** (sidebar).
+- Files are stored securely in the Supabase Storage bucket `important-docs`; only authenticated users of the household account can access them.
+- Document metadata (notes, file names) is synced via the shared finance document so both of you see updates instantly.
 
 ### German Tax Calculator
 - Build multiple salaried/self-employment scenarios with adjustable bonuses, deductions, and social contributions.

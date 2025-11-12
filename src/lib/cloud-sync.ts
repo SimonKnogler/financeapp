@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { FinanceState } from '@/types/finance';
+import type { FinanceState, StoredDocument } from '@/types/finance';
 import type { GermanTaxScenario } from '@/types/tax';
 import {
   FinanceSyncDocument,
@@ -14,17 +14,22 @@ let cachedDocument: FinanceSyncDocument | null = null;
 let lastUploadedHash: string | null = null;
 
 function toSyncState(
-  state: FinanceState & { customAssetReturns: Record<string, number>; taxScenarios?: GermanTaxScenario[] }
+  state: FinanceState & {
+    customAssetReturns: Record<string, number>;
+    taxScenarios?: GermanTaxScenario[];
+    documents?: StoredDocument[];
+  }
 ): FinanceSyncState {
   return {
     ...state,
     customAssetReturns: state.customAssetReturns ?? {},
     taxScenarios: state.taxScenarios ?? [],
+    documents: state.documents ?? [],
   } as FinanceSyncState;
 }
 
 export async function uploadToCloud(
-  rawState: FinanceState & { customAssetReturns: Record<string, number> },
+  rawState: FinanceState & { customAssetReturns: Record<string, number>; documents?: StoredDocument[]; taxScenarios?: GermanTaxScenario[] },
   options?: { force?: boolean }
 ): Promise<{ success: true; skipped: boolean; document: FinanceSyncDocument }> {
   const {

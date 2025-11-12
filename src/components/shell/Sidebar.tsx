@@ -1,10 +1,11 @@
 "use client";
 
+import type { JSX } from "react";
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/ui"; 
-import { Banknote, Coins, Settings, FlaskConical, TrendingUp, Eye, EyeOff, LineChart, Target, Newspaper, Calculator } from "lucide-react";
+import { Banknote, Coins, Settings, FlaskConical, TrendingUp, Eye, EyeOff, LineChart, Target, Newspaper, Calculator, FileText } from "lucide-react";
 import { useFinanceStore } from "@/store/finance-store";
 
 const navItems = [
@@ -14,12 +15,13 @@ const navItems = [
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/income", label: "Income", icon: Banknote },
   { href: "/expenses", label: "Expenses", icon: Coins },
+  { href: "/documents", label: "Documents", icon: FileText },
   { href: "/taxes", label: "Taxes", icon: Calculator },
   { href: "/assumptions", label: "Assumptions", icon: FlaskConical },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar(): JSX.Element {
   const pathname = usePathname();
   const { privacyMode, togglePrivacyMode } = useFinanceStore();
   

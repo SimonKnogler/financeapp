@@ -20,6 +20,7 @@ export function CloudSync() {
   const portfolioHistory = useFinanceStore((s) => s.portfolioHistory);
   const assumptions = useFinanceStore((s) => s.assumptions);
   const customAssetReturns = useFinanceStore((s) => s.customAssetReturns);
+  const documents = useFinanceStore((s) => s.documents);
   
   // Get store actions
   const replaceWithCloudData = useFinanceStore((s) => s.replaceWithCloudData);
@@ -51,6 +52,7 @@ export function CloudSync() {
         portfolioHistory,
         assumptions,
         customAssetReturns,
+        documents,
       });
       if (result.skipped) {
         setMessage({ type: "success", text: "ℹ️ No changes detected — cloud data already up to date." });

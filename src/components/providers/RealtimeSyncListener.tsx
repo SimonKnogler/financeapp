@@ -27,6 +27,7 @@ function selectSyncState(state: StoreState): FinanceSyncState {
     portfolioHistory: state.portfolioHistory,
     assumptions: state.assumptions,
     customAssetReturns: state.customAssetReturns,
+    documents: state.documents,
   } as FinanceSyncState;
 }
 

@@ -114,6 +114,18 @@ export interface FinancialGoal {
   owner: PortfolioOwner | "joint";
 }
 
+export interface StoredDocument {
+  id: string;
+  name: string;
+  size: number;
+  storagePath: string;
+  uploadedAt: string; // ISO timestamp
+  uploadedById: string;
+  uploadedByEmail?: string | null;
+  description?: string;
+  tags?: string[];
+}
+
 export interface MonteCarloScenario {
   dateISO: string;
   p10: number;  // 10th percentile
@@ -134,6 +146,7 @@ export interface FinanceState {
   portfolioHistory: PortfolioSnapshot[];
   goals: FinancialGoal[];
   assumptions: Assumptions;
+  documents: StoredDocument[];
 }
 
 export interface ProjectionPoint {
