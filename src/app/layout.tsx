@@ -20,6 +20,14 @@ export default function RootLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.error('Service Worker registration failed:', err);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     // Check authentication status
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session && pathname !== "/login") {
@@ -52,6 +60,17 @@ export default function RootLayout({
   if (loading) {
     return (
       <html lang="en" suppressHydrationWarning>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+          <meta name="theme-color" content="#2563eb" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+          <meta name="apple-mobile-web-app-title" content="Finances" />
+          <link rel="manifest" href="/manifest.json" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+          <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+          <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+        </head>
         <body>
           <ThemeProvider>
             <div className="flex items-center justify-center min-h-screen">
@@ -70,6 +89,17 @@ export default function RootLayout({
   if (pathname === "/login" || !isAuthenticated) {
     return (
       <html lang="en" suppressHydrationWarning>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+          <meta name="theme-color" content="#2563eb" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+          <meta name="apple-mobile-web-app-title" content="Finances" />
+          <link rel="manifest" href="/manifest.json" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+          <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+          <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+        </head>
         <body>
           <ThemeProvider>
             {children}
@@ -82,6 +112,17 @@ export default function RootLayout({
   // Authenticated users see the full layout with sidebar
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta name="theme-color" content="#2563eb" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Finances" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+      </head>
       <body>
         <ThemeProvider>
           <RealtimeSyncListener />
