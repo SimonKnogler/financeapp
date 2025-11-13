@@ -12,6 +12,7 @@ import { SellModal } from "@/components/portfolio/SellModal";
 import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
 import { AllocationRadialChart } from "@/components/portfolio/AllocationRadialChart";
+import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
@@ -1197,6 +1198,47 @@ export default function PortfolioPage() {
             benchmarkLabel={selectedBenchmark.type !== "none" ? selectedBenchmark.label : undefined}
             valueMode={valueMode}
           />
+          <div className="mt-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Performance detail</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Review swings and estimated contributions below
+                </div>
+              </div>
+              <div className="inline-flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <button
+                  type="button"
+                  onClick={() => setPerformancePeriod("yearly")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    performancePeriod === "yearly"
+                      ? "bg-blue-600 text-white"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  Yearly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPerformancePeriod("monthly")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    performancePeriod === "monthly"
+                      ? "bg-blue-600 text-white"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  Monthly
+                </button>
+              </div>
+            </div>
+            {performanceData.length === 0 ? (
+              <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 text-sm text-zinc-600 dark:text-zinc-300">
+                Not enough history to chart yet. Keep the app open to build a performance trail.
+              </div>
+            ) : (
+              <PerformanceBars data={performanceData} currency={currency} />
+            )}
+          </div>
         </div>
       </div>
 
