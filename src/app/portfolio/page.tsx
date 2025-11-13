@@ -1,18 +1,83 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useFinanceStore } from "@/store/finance-store";
 import { fetchStockPrices } from "@/lib/stock-prices";
 import { fetchStockNewsMultiple } from "@/lib/stock-news";
 import { StockChart } from "@/components/charts/StockChart";
-import { PortfolioChart } from "@/components/charts/PortfolioChart";
+import { PortfolioChart, type PortfolioRange, getPortfolioRangeStart } from "@/components/charts/PortfolioChart";
 import { SparplanModal } from "@/components/portfolio/SparplanModal";
 import { SellModal } from "@/components/portfolio/SellModal";
 import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
-import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner } from "@/types/finance";
+import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
 type TabView = "total" | "carolina" | "simon";
+
+type BenchmarkOptionType = "none" | "stock" | "crypto";
+
+interface BenchmarkOption {
+  value: string;
+  label: string;
+  type: BenchmarkOptionType;
+}
+
+interface BenchmarkSeriesPoint {
+  date: string;
+  close: number;
+}
+
+const PORTFOLIO_RANGE_OPTIONS: { label: string; value: PortfolioRange }[] = [
+  { label: "1D", value: "1d" },
+  { label: "1W", value: "1w" },
+  { label: "1M", value: "1m" },
+  { label: "YTD", value: "ytd" },
+  { label: "1Y", value: "1y" },
+  { label: "Max", value: "max" },
+];
+
+const BENCHMARK_OPTIONS: BenchmarkOption[] = [
+  { value: "none", label: "No benchmark", type: "none" },
+  { value: "VWCE.DE", label: "MSCI World (VWCE)", type: "stock" },
+  { value: "SPY", label: "S&P 500 (SPY)", type: "stock" },
+  { value: "BTC", label: "Bitcoin (BTC)", type: "crypto" },
+];
+
+function mapRangeToStockApi(range: PortfolioRange): string {
+  switch (range) {
+    case "1d":
+      return "1d";
+    case "1w":
+      return "5d";
+    case "1m":
+      return "1mo";
+    case "ytd":
+      return "ytd";
+    case "1y":
+      return "1y";
+    case "max":
+    default:
+      return "max";
+  }
+}
+
+function mapRangeToCryptoApi(range: PortfolioRange): string {
+  switch (range) {
+    case "1d":
+      return "1d";
+    case "1w":
+      return "5d";
+    case "1m":
+      return "1mo";
+    case "ytd":
+      return "1y";
+    case "1y":
+      return "1y";
+    case "max":
+    default:
+      return "max";
+  }
+}
 
 export default function PortfolioPage() {
   const stocks: StockHolding[] = useFinanceStore((s) => s.stocks);
@@ -27,6 +92,11 @@ export default function PortfolioPage() {
   const privacyMode = useFinanceStore((s) => s.privacyMode);
 
   const [activeTab, setActiveTab] = useState<TabView>("total");
+  const [range, setRange] = useState<PortfolioRange>("1m");
+  const [benchmark, setBenchmark] = useState<string>("none");
+  const [benchmarkSeries, setBenchmarkSeries] = useState<BenchmarkSeriesPoint[] | null>(null);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
+  const [benchmarkError, setBenchmarkError] = useState<string | null>(null);
   const [symbol, setSymbol] = useState("");
   const [shares, setShares] = useState<string>("0");
   const [costBasis, setCostBasis] = useState<string>("");
@@ -44,6 +114,126 @@ export default function PortfolioPage() {
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
   const [showRevolutImport, setShowRevolutImport] = useState(false);
 
+  const selectedBenchmark = useMemo(() => {
+    return BENCHMARK_OPTIONS.find((option) => option.value === benchmark) ?? BENCHMARK_OPTIONS[0];
+  }, [benchmark]);
+
+  const ownerHistory = useMemo(() => {
+    return portfolioHistory
+      .filter((snapshot) => snapshot.owner === activeTab)
+      .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+  }, [portfolioHistory, activeTab]);
+
+  const todayIso = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  const previousTotalValue = useMemo(() => {
+    if (ownerHistory.length === 0) {
+      return null;
+    }
+    for (let i = ownerHistory.length - 1; i >= 0; i--) {
+      const entry = ownerHistory[i];
+      if (entry.dateISO < todayIso) {
+        return entry.totalValue;
+      }
+    }
+    if (ownerHistory.length >= 2) {
+      return ownerHistory[ownerHistory.length - 2]?.totalValue ?? null;
+    }
+    return null;
+  }, [ownerHistory, todayIso]);
+
+  const rangePerformance = useMemo(() => {
+    const today = new Date();
+    const startDate = getPortfolioRangeStart(range, today).toISOString().split("T")[0];
+    const rangePoints = ownerHistory.filter((snapshot) => snapshot.dateISO >= startDate);
+    const baseline = rangePoints.length > 0 ? rangePoints[0].investmentValue : undefined;
+    return {
+      baseline: baseline ?? null,
+    };
+  }, [ownerHistory, range]);
+
+  useEffect(() => {
+    if (selectedBenchmark.type === "none") {
+      setBenchmarkSeries(null);
+      setBenchmarkError(null);
+      setBenchmarkLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadBenchmark = async () => {
+      setBenchmarkLoading(true);
+      setBenchmarkError(null);
+      try {
+        const endpoint = selectedBenchmark.type === "stock" ? "/api/stock-history" : "/api/crypto-history";
+        const rangeParam = selectedBenchmark.type === "stock"
+          ? mapRangeToStockApi(range)
+          : mapRangeToCryptoApi(range);
+
+        const response = await fetch(
+          `${endpoint}?symbol=${encodeURIComponent(selectedBenchmark.value)}&range=${rangeParam}`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch benchmark (${response.status})`);
+        }
+
+        const payload = await response.json();
+        const rawData: any[] = Array.isArray(payload?.data) ? payload.data : [];
+        const aggregated = new Map<string, number>();
+
+        for (const point of rawData) {
+          let rawDate: string | null = null;
+          if (typeof point.date === "string") {
+            rawDate = point.date;
+          } else if (typeof point.timestamp === "number") {
+            rawDate = new Date(point.timestamp * 1000).toISOString();
+          }
+
+          if (!rawDate) continue;
+          const dateKey = rawDate.split(" ")[0].split("T")[0];
+          const closeValue =
+            typeof point.close === "number"
+              ? point.close
+              : typeof point.price === "number"
+              ? point.price
+              : null;
+
+          if (closeValue === null) continue;
+          aggregated.set(dateKey, closeValue);
+        }
+
+        const normalizedSeries = Array.from(aggregated.entries())
+          .map(([date, close]) => ({ date, close }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        if (!cancelled) {
+          setBenchmarkSeries(normalizedSeries);
+        }
+      } catch (error: any) {
+        if (cancelled || error?.name === "AbortError") {
+          return;
+        }
+        setBenchmarkSeries(null);
+        setBenchmarkError(error?.message ?? "Failed to load benchmark data");
+      } finally {
+        if (!cancelled) {
+          setBenchmarkLoading(false);
+        }
+      }
+    };
+
+    loadBenchmark();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [selectedBenchmark.type, selectedBenchmark.value, range]);
+
   function resetCostBasisToCurrentPrices() {
     if (!confirm("This will set the cost basis of all positions to their current market price. This action cannot be undone. Continue?")) {
       return;
@@ -51,9 +241,7 @@ export default function PortfolioPage() {
 
     let updatedCount = 0;
     stocks.forEach((stock) => {
-      // Skip cash accounts
       if (stock.type === "cash") return;
-
       const price = prices.get(stock.symbol.toUpperCase());
       if (price?.price) {
         updateStock(stock.id, {
@@ -73,18 +261,16 @@ export default function PortfolioPage() {
       return;
     }
     setLoading(true);
-    
+
     const priceMap = new Map<string, StockPrice>();
     const newsMap = new Map<string, StockNews[]>();
-    
-    // Add cache buster for manual refresh
-    const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : '';
-    
-    // Helper function to fetch with timeout
+
+    const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : "";
+
     const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
+
       try {
         const response = await fetch(url, {
           ...options,
@@ -94,18 +280,16 @@ export default function PortfolioPage() {
         return response;
       } catch (error: any) {
         clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-          throw new Error('Request timeout');
+        if (error.name === "AbortError") {
+          throw new Error("Request timeout");
         }
         throw error;
       }
     };
-    
-    // Fetch prices and news for each asset based on type
+
     await Promise.all(
       stocks.map(async (stock) => {
         try {
-          // Cash doesn't need price fetching (always 1:1)
           if (stock.type === "cash") {
             priceMap.set(stock.symbol.toUpperCase(), {
               symbol: stock.symbol.toUpperCase(),
@@ -116,40 +300,33 @@ export default function PortfolioPage() {
             return;
           }
 
-          // Fetch price (ETFs use same endpoint as stocks)
           const priceEndpoint = stock.type === "crypto" ? "/api/crypto-price" : "/api/stock-price";
           const priceRes = await fetchWithTimeout(
             `${priceEndpoint}?symbol=${encodeURIComponent(stock.symbol)}${cacheBuster}`,
-            { cache: forceRefresh ? 'no-store' : 'default' },
-            10000 // 10 second timeout
+            { cache: forceRefresh ? "no-store" : "default" },
+            10000
           );
           if (priceRes.ok) {
             const priceData = await priceRes.json();
-            // Convert to EUR if needed (stocks and ETFs)
             if ((stock.type === "stock" || stock.type === "etf") && priceData.currency !== "EUR") {
-              // Stock/ETF prices converted via our existing service
               const stockPrice = await fetchStockPrices([stock.symbol], "EUR");
               const price = stockPrice.get(stock.symbol.toUpperCase());
               if (price) {
-                console.log(`${stock.symbol}: ${price.price} ${price.currency} (converted from ${priceData.currency})`);
                 priceMap.set(stock.symbol.toUpperCase(), price);
               }
             } else {
-              console.log(`${stock.symbol}: ${priceData.price} ${priceData.currency}`);
               priceMap.set(stock.symbol.toUpperCase(), priceData);
             }
           } else {
-            // Price fetch failed - log but don't add to map (will show "Error" in UI)
             console.error(`Failed to fetch price for ${stock.symbol}: ${priceRes.status}`);
           }
-          
-          // Fetch news (ETFs use same endpoint as stocks, no news for cash)
+
           if (stock.type === "crypto" || stock.type === "stock" || stock.type === "etf") {
             const newsEndpoint = stock.type === "crypto" ? "/api/crypto-news" : "/api/stock-news";
             const newsRes = await fetchWithTimeout(
               `${newsEndpoint}?symbol=${encodeURIComponent(stock.symbol)}${cacheBuster}`,
-              { cache: forceRefresh ? 'no-store' : 'default' },
-              10000 // 10 second timeout
+              { cache: forceRefresh ? "no-store" : "default" },
+              10000
             );
             if (newsRes.ok) {
               const newsData = await newsRes.json();
@@ -161,30 +338,20 @@ export default function PortfolioPage() {
         }
       })
     );
-    
+
     setPrices(priceMap);
     setNews(newsMap);
     setLastUpdate(new Date());
-    setLoading(false);
 
-    // Save daily snapshots for each owner (total, simon, carolina) if we haven't already today
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Function to calculate and save snapshot for a specific owner
+    const today = new Date().toISOString().split("T")[0];
+
     const saveSnapshotForOwner = (owner: "total" | "simon" | "carolina") => {
-      const lastSnapshot = portfolioHistory.find(
-        (s) => s.dateISO === today && s.owner === owner
-      );
-      
+      const lastSnapshot = portfolioHistory.find((s) => s.dateISO === today && s.owner === owner);
       if (!lastSnapshot) {
-        // Filter stocks by owner
-        const ownerStocks = owner === "total" ? stocks : stocks.filter(s => s.owner === owner);
-        
-        // Calculate values
+        const ownerStocks = owner === "total" ? stocks : stocks.filter((s) => s.owner === owner);
         const cashVal = ownerStocks
           .filter((s) => s.type === "cash")
           .reduce((sum, stock) => sum + stock.shares, 0);
-
         const invVal = ownerStocks
           .filter((s) => s.type !== "cash")
           .reduce((sum, stock) => {
@@ -200,67 +367,42 @@ export default function PortfolioPage() {
           investmentValue: invVal,
           owner,
         });
-        
-        console.log(`Saved ${owner} portfolio snapshot for ${today}: €${(cashVal + invVal).toFixed(2)}`);
-      }
-    };
-    
-    // Save snapshots for all three views
-    saveSnapshotForOwner("total");
-    saveSnapshotForOwner("simon");
-    saveSnapshotForOwner("carolina");
-  }
-
-  useEffect(() => {
-    refreshPrices();
-    // Auto-refresh every 2 minutes
-    const interval = setInterval(refreshPrices, 2 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [stocks.length]);
-  
-  // Update snapshots whenever stocks change (to keep today's snapshot current)
-  useEffect(() => {
-    if (prices.size > 0) {
-      // Recalculate and update today's snapshot for all owners
-      const today = new Date().toISOString().split('T')[0];
-      
-      ["total", "simon", "carolina"].forEach((owner) => {
-        const ownerStocks = owner === "total" ? stocks : stocks.filter(s => s.owner === owner);
-        
+      } else {
+        const ownerStocks = owner === "total" ? stocks : stocks.filter((s) => s.owner === owner);
         const cashVal = ownerStocks
           .filter((s) => s.type === "cash")
           .reduce((sum, stock) => sum + stock.shares, 0);
-
         const invVal = ownerStocks
           .filter((s) => s.type !== "cash")
           .reduce((sum, stock) => {
-            const price = prices.get(stock.symbol.toUpperCase());
+            const price = priceMap.get(stock.symbol.toUpperCase());
             if (!price) return sum;
             return sum + stock.shares * price.price;
           }, 0);
 
-        console.log(`Updating ${owner} snapshot: €${(cashVal + invVal).toFixed(2)}`);
-        
-        // This will update if exists, or create new if not
         updatePortfolioSnapshot({
           dateISO: today,
+          owner,
           totalValue: cashVal + invVal,
           cashValue: cashVal,
           investmentValue: invVal,
-          owner: owner as "total" | "simon" | "carolina",
         });
-      });
-    }
-  }, [stocks, prices]);
+      }
+    };
 
-  function onAdd(e: React.FormEvent) {
-    e.preventDefault();
-    
-    // Determine owner based on active tab
+    (["total", "simon", "carolina"] as const).forEach((owner) => saveSnapshotForOwner(owner));
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    refreshPrices(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onAdd(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const owner: PortfolioOwner = activeTab === "carolina" ? "carolina" : "simon";
-    
-    console.log(`Adding asset: type=${assetType}, symbol=${symbol}, shares=${shares}, owner=${owner}`);
-    
     addStock({
       symbol: symbol.toUpperCase(),
       shares: parseFloat(shares) || 0,
@@ -273,18 +415,14 @@ export default function PortfolioPage() {
     setShares("0");
     setCostBasis("");
     setPurchaseDateISO("");
-    setAssetType("cash"); // Keep last selection
+    setAssetType("cash");
   }
 
-  // Filter stocks based on active tab
-  const filteredStocks = activeTab === "total" 
-    ? stocks 
-    : stocks.filter(s => s.owner === activeTab);
+  const filteredStocks = activeTab === "total" ? stocks : stocks.filter((s) => s.owner === activeTab);
 
-  // Separate cash from investments for filtered stocks
   const cashValue = filteredStocks
     .filter((s) => s.type === "cash")
-    .reduce((sum, stock) => sum + stock.shares, 0); // For cash, shares = amount
+    .reduce((sum, stock) => sum + stock.shares, 0);
 
   const investmentValue = filteredStocks
     .filter((s) => s.type !== "cash")
@@ -296,7 +434,6 @@ export default function PortfolioPage() {
 
   const totalValue = cashValue + investmentValue;
 
-  // Only calculate cost/gain for investments (not cash) in filtered stocks
   const totalCost = filteredStocks
     .filter((s) => s.type !== "cash")
     .reduce((sum, stock) => {
@@ -308,22 +445,41 @@ export default function PortfolioPage() {
   const totalGainPercent = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
   const activeSparplans = filteredStocks.filter((s) => s.sparplan?.active);
-  const totalMonthlyInvestment = activeSparplans.reduce(
-    (sum, s) => sum + (s.sparplan?.monthlyAmount || 0),
-    0
-  );
+  const totalMonthlyInvestment = activeSparplans.reduce((sum, s) => sum + (s.sparplan?.monthlyAmount || 0), 0);
 
-  const formatter = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 2,
-  });
+  const dailyChangeValue = previousTotalValue !== null ? totalValue - previousTotalValue : 0;
+  const hasPrevious = previousTotalValue !== null;
+  const dailyChangePercent = hasPrevious && Math.abs(previousTotalValue as number) > 0
+    ? (dailyChangeValue / (previousTotalValue as number)) * 100
+    : 0;
+  const dailyIsPositive = dailyChangeValue >= 0;
+
+  const dailyChangeDisplay = hasPrevious
+    ? privacyMode
+      ? "••••• (•••%)"
+      : `${dailyIsPositive ? "+" : "−"}${formatCurrency(Math.abs(dailyChangeValue), currency, false)} (${formatPercent(dailyChangePercent, false)})`
+    : privacyMode
+    ? "••••• (•••%)"
+    : "Awaiting history";
+
+  const rangeBaseline = rangePerformance.baseline ?? investmentValue;
+  const rangeChangeValue = investmentValue - rangeBaseline;
+  const rangeChangePercent = rangeBaseline !== 0 ? (rangeChangeValue / rangeBaseline) * 100 : 0;
+  const rangeIsPositive = rangeChangeValue >= 0;
+  const rangePerformanceDisplay = privacyMode
+    ? "••••• (•••%)"
+    : `${rangeIsPositive ? "+" : "−"}${formatCurrency(Math.abs(rangeChangeValue), currency, false)} (${formatPercent(rangeChangePercent, false)})`;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Portfolio</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Portfolio</h1>
+          {lastUpdate && (
+            <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
           {activeTab !== "total" && (
             <button
               onClick={() => setShowRevolutImport(true)}
@@ -335,23 +491,90 @@ export default function PortfolioPage() {
           )}
           <button
             onClick={resetCostBasisToCurrentPrices}
-            disabled={loading || stocks.filter(s => s.type !== "cash").length === 0}
+            disabled={loading || stocks.filter((s) => s.type !== "cash").length === 0}
             className="rounded-md border border-blue-200 dark:border-blue-800 px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
             title="Reset all cost bases to current market prices (starts gain/loss tracking from today)"
           >
             Reset Cost Basis
           </button>
-        <button
-          onClick={() => refreshPrices(true)}
-          disabled={loading}
-          className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
-        >
-          {loading ? "Refreshing..." : "Refresh Prices"}
-        </button>
+          <button
+            onClick={() => refreshPrices(true)}
+            disabled={loading}
+            className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {loading ? "Refreshing..." : "Refresh Prices"}
+          </button>
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 flex flex-wrap items-end justify-between gap-4 shadow-sm">
+        <div className="space-y-1">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">Total portfolio value</div>
+          <div className="text-3xl font-semibold">{formatCurrency(totalValue, currency, privacyMode)}</div>
+          <div
+            className={`text-sm font-medium ${
+              !hasPrevious || Math.abs(dailyChangeValue) < 0.01
+                ? "text-zinc-500"
+                : dailyIsPositive
+                ? "text-green-600 dark:text-green-500"
+                : "text-red-600 dark:text-red-500"
+            }`}
+          >
+            {dailyChangeDisplay}
+          </div>
+          <div
+            className={`text-xs ${
+              Math.abs(rangeChangeValue) < 0.01
+                ? "text-zinc-500"
+                : rangeIsPositive
+                ? "text-green-600 dark:text-green-500"
+                : "text-red-600 dark:text-red-500"
+            }`}
+          >
+            Range performance: {rangePerformanceDisplay}
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-1 text-xs font-medium">
+            {PORTFOLIO_RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setRange(option.value)}
+                className={`rounded-md px-3 py-1.5 transition-colors ${
+                  range === option.value
+                    ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow"
+                    : "text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50"
+                }`}
+                aria-pressed={range === option.value}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">Benchmark</span>
+            <select
+              value={benchmark}
+              onChange={(event) => setBenchmark(event.target.value)}
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+            >
+              {BENCHMARK_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {benchmarkLoading && (
+              <span className="text-xs text-zinc-500">Updating…</span>
+            )}
+          </div>
+        </div>
+      </div>
+      {benchmarkError && (
+        <div className="text-xs text-red-500">{benchmarkError}</div>
+      )}
+
       <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
         <button
           onClick={() => setActiveTab("total")}
@@ -385,44 +608,34 @@ export default function PortfolioPage() {
         </button>
       </div>
 
-      {lastUpdate && (
-        <div className="text-xs text-zinc-500">
-          Last updated: {lastUpdate.toLocaleTimeString()}
-        </div>
-      )}
-
-      {/* Portfolio Performance Chart */}
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
         <div className="mb-3 font-semibold">Investment Performance</div>
-        <PortfolioChart 
-          portfolioHistory={portfolioHistory.filter(s => s.owner === activeTab)} 
-          currentValue={investmentValue} 
+        <PortfolioChart
+          portfolioHistory={ownerHistory}
+          currentValue={investmentValue}
           baselineValue={totalCost > 0 ? totalCost : undefined}
-          height={280} 
+          height={280}
+          range={range}
+          benchmarkSeries={benchmarkSeries ?? undefined}
+          benchmarkLabel={selectedBenchmark.type !== "none" ? selectedBenchmark.label : undefined}
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-sm text-zinc-500">Total Portfolio</div>
-          <div className="text-2xl font-semibold">{formatCurrency(totalValue, "EUR", privacyMode)}</div>
-          <div className="text-xs text-zinc-500 mt-1">
-            Investments + Cash
-          </div>
+          <div className="text-2xl font-semibold">{formatCurrency(totalValue, currency, privacyMode)}</div>
+          <div className="text-xs text-zinc-500 mt-1">Investments + Cash</div>
         </div>
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-sm text-zinc-500">Cash</div>
-          <div className="text-2xl font-semibold">{formatCurrency(cashValue, "EUR", privacyMode)}</div>
-          <div className="text-xs text-zinc-500 mt-1">
-            Liquid assets
-          </div>
+          <div className="text-2xl font-semibold">{formatCurrency(cashValue, currency, privacyMode)}</div>
+          <div className="text-xs text-zinc-500 mt-1">Liquid assets</div>
         </div>
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-sm text-zinc-500">Investments</div>
-          <div className="text-2xl font-semibold">{formatCurrency(investmentValue, "EUR", privacyMode)}</div>
-          <div className="text-xs text-zinc-500 mt-1">
-            Stocks, ETFs, Crypto
-          </div>
+          <div className="text-2xl font-semibold">{formatCurrency(investmentValue, currency, privacyMode)}</div>
+          <div className="text-xs text-zinc-500 mt-1">Stocks, ETFs, Crypto</div>
         </div>
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-sm text-zinc-500">Investment Gain/Loss</div>
@@ -431,17 +644,19 @@ export default function PortfolioPage() {
               totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
             }`}
           >
-            {formatCurrency(totalGain, "EUR", privacyMode)}
+            {formatCurrency(totalGain, currency, privacyMode)}
           </div>
-          <div className={`text-xs ${totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"}`}>
+          <div
+            className={`text-xs ${
+              totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+            }`}
+          >
             {formatPercent(totalGainPercent, privacyMode)} return
           </div>
         </div>
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-sm text-zinc-500">Active Sparpläne</div>
-          <div className="text-2xl font-semibold">
-            {formatCurrency(totalMonthlyInvestment, "EUR", privacyMode)}/mo
-          </div>
+          <div className="text-2xl font-semibold">{formatCurrency(totalMonthlyInvestment, currency, privacyMode)}/mo</div>
           <div className="text-xs text-zinc-500 mt-1">
             {activeSparplans.length} {activeSparplans.length === 1 ? "plan" : "plans"}
           </div>
@@ -454,7 +669,7 @@ export default function PortfolioPage() {
           <h2 className="text-lg font-semibold mb-3">Goal Allocation</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {goals.map((goal) => {
-              const allocatedHoldings = filteredStocks.filter(s => s.goalId === goal.id);
+              const allocatedHoldings = filteredStocks.filter((s) => s.goalId === goal.id);
               const allocatedValue = allocatedHoldings.reduce((sum, stock) => {
                 const assetType = stock.type || "stock";
                 if (assetType === "cash") {
@@ -462,14 +677,14 @@ export default function PortfolioPage() {
                 }
                 const price = prices.get(stock.symbol.toUpperCase());
                 const currentPrice = price?.price ?? 0;
-                return sum + (stock.shares * currentPrice);
+                return sum + stock.shares * currentPrice;
               }, 0);
-              
+
               return (
                 <div key={goal.id} className="p-3 rounded-md bg-zinc-50 dark:bg-zinc-900/50">
                   <div className="text-sm font-medium mb-1">{goal.name}</div>
                   <div className="text-xl font-semibold text-blue-600 dark:text-blue-400">
-                    {formatCurrency(allocatedValue, "EUR", privacyMode)}
+                    {formatCurrency(allocatedValue, currency, privacyMode)}
                   </div>
                   <div className="text-xs text-zinc-500 mt-1">
                     {allocatedHoldings.length} {allocatedHoldings.length === 1 ? "holding" : "holdings"}
@@ -481,75 +696,71 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* Only show add form for individual portfolios */}
       {activeTab !== "total" && (
-        <form
-          onSubmit={onAdd}
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4"
-        >
-        <select
-          value={assetType}
-          onChange={(e) => setAssetType(e.target.value as "stock" | "crypto" | "etf" | "cash")}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
-        >
-          <option value="cash">Cash</option>
-          <option value="stock">Stock</option>
-          <option value="etf">ETF/Index</option>
-          <option value="crypto">Crypto</option>
-        </select>
-        <input
-          required
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-          placeholder={
-            assetType === "cash"
-              ? "Name (e.g., Checking, Savings)"
-              : assetType === "crypto" 
-              ? "Symbol (e.g., BTC, ETH)" 
-              : assetType === "etf"
-              ? "Symbol (e.g., IWDA.AS, VWCE.DE)"
-              : "Symbol (e.g., AAPL, ASML.AS)"
-          }
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
-          title={
-            assetType === "cash"
-              ? "Enter account name (e.g., Checking Account, Savings)"
-              : assetType === "etf"
-              ? "iShares Core MSCI World: IWDA.AS (Amsterdam), EUNL.DE (Frankfurt), SWDA.L (London)"
-              : "For European stocks, add exchange suffix (e.g., ASML.AS for Amsterdam, SAP.DE for Frankfurt)"
-          }
-        />
-        <input
-          required
-          value={shares}
-          onChange={(e) => setShares(e.target.value)}
-          placeholder={assetType === "cash" ? "Amount (EUR)" : "Shares"}
-          type="number"
-          step="any"
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
-        />
-        <input
-          value={costBasis}
-          onChange={(e) => setCostBasis(e.target.value)}
-          placeholder="Cost Basis (optional)"
-          type="number"
-          step="any"
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
-        />
-        <input
-          type="date"
-          value={purchaseDateISO}
-          onChange={(e) => setPurchaseDateISO(e.target.value)}
-          placeholder="Purchase Date"
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
-        />
-        <button
-          type="submit"
-          className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          Add
-        </button>
-      </form>
+        <form onSubmit={onAdd} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
+          <select
+            value={assetType}
+            onChange={(e) => setAssetType(e.target.value as "stock" | "crypto" | "etf" | "cash")}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
+          >
+            <option value="cash">Cash</option>
+            <option value="stock">Stock</option>
+            <option value="etf">ETF/Index</option>
+            <option value="crypto">Crypto</option>
+          </select>
+          <input
+            required
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+            placeholder={
+              assetType === "cash"
+                ? "Name (e.g., Checking, Savings)"
+                : assetType === "crypto"
+                ? "Symbol (e.g., BTC, ETH)"
+                : assetType === "etf"
+                ? "Symbol (e.g., IWDA.AS, VWCE.DE)"
+                : "Symbol (e.g., AAPL, ASML.AS)"
+            }
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
+            title={
+              assetType === "cash"
+                ? "Enter account name (e.g., Checking Account, Savings)"
+                : assetType === "etf"
+                ? "iShares Core MSCI World: IWDA.AS (Amsterdam), EUNL.DE (Frankfurt), SWDA.L (London)"
+                : "For European stocks, add exchange suffix (e.g., ASML.AS for Amsterdam, SAP.DE for Frankfurt)"
+            }
+          />
+          <input
+            required
+            value={shares}
+            onChange={(e) => setShares(e.target.value)}
+            placeholder={assetType === "cash" ? "Amount (EUR)" : "Shares"}
+            type="number"
+            step="any"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
+          />
+          <input
+            value={costBasis}
+            onChange={(e) => setCostBasis(e.target.value)}
+            placeholder="Cost Basis (optional)"
+            type="number"
+            step="any"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
+          />
+          <input
+            type="date"
+            value={purchaseDateISO}
+            onChange={(e) => setPurchaseDateISO(e.target.value)}
+            placeholder="Purchase Date"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
+          />
+          <button
+            type="submit"
+            className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            Add
+          </button>
+        </form>
       )}
 
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
@@ -569,136 +780,140 @@ export default function PortfolioPage() {
                 <th className="p-2"></th>
               </tr>
             </thead>
-          <tbody>
-            {filteredStocks.map((stock) => {
-              // Default type to "stock" if missing (for old data)
-              const assetType = stock.type || "stock";
-              
-              const price = prices.get(stock.symbol.toUpperCase());
-              const currentPrice = price?.price ?? 0;
-              
-              // For cash, market value = amount entered (shares field)
-              // For investments, market value = shares * price
-              const marketValue = assetType === "cash" ? stock.shares : stock.shares * currentPrice;
-              
-              // Only calculate gain/loss for investments
-              const costValue = assetType !== "cash" && stock.costBasis ? stock.shares * stock.costBasis : 0;
-              const gain = costValue > 0 ? marketValue - costValue : 0;
-              const gainPercent = costValue > 0 ? (gain / costValue) * 100 : 0;
+            <tbody>
+              {filteredStocks.map((stock) => {
+                const assetType = stock.type || "stock";
 
-              return (
-                <tr key={stock.id} className="border-t border-zinc-200 dark:border-zinc-800">
-                  <td className="p-2 sticky left-0 bg-white dark:bg-zinc-900 z-10">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      assetType === "crypto" 
-                        ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" 
-                        : assetType === "etf"
-                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                        : assetType === "cash"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                    }`}>
-                      {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
-                    </span>
-                  </td>
-                  <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">{stock.symbol}</td>
-                  <td className="p-2 text-right">
-                    {assetType === "cash" ? "-" : formatNumber(stock.shares, privacyMode)}
-                  </td>
-                  <td className="p-2 text-right">
-                    {assetType === "cash" ? "-" : stock.costBasis ? formatCurrencyDetailed(stock.costBasis, "EUR", privacyMode) : "-"}
-                  </td>
-                  <td className="p-2 text-right">
-                    {assetType === "cash" ? (
-                      <span className="text-zinc-500">Cash</span>
-                    ) : loading ? (
-                      <span className="text-zinc-400">Loading...</span>
-                    ) : price && currentPrice > 0 ? (
-                      formatCurrencyDetailed(currentPrice, "EUR", privacyMode)
-                    ) : (
-                      <span className="text-red-500 dark:text-red-400 text-xs" title="Failed to fetch price. Click 'Refresh Prices' to retry.">
-                        Error
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-2 text-right font-semibold">{formatCurrency(marketValue, "EUR", privacyMode)}</td>
-                  <td
-                    className={`p-2 text-right ${
-                      assetType === "cash" 
-                        ? "text-zinc-500"
-                        : gain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-                    }`}
-                  >
-                    {assetType === "cash" ? (
-                      "-"
-                    ) : stock.costBasis ? (
-                      <>
-                        {formatCurrency(gain, "EUR", privacyMode)} ({formatPercent(gainPercent, privacyMode)})
-                      </>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="p-2">
-                    <select
-                      value={stock.goalId || ""}
-                      onChange={(e) => updateStock(stock.id, { goalId: e.target.value || undefined })}
-                      className="text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-1 py-0.5"
-                    >
-                      <option value="">None</option>
-                      {goals.map((goal) => (
-                        <option key={goal.id} value={goal.id}>
-                          {goal.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="p-2">{stock.purchaseDateISO ?? "-"}</td>
-                  <td className="p-2 text-right space-x-2">
-                    <button
-                      onClick={() => setEditingStock(stock)}
-                      className="rounded-md border border-blue-200 dark:border-blue-800 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                      title="Edit holding details"
-                    >
-                      Edit
-                    </button>
-                    {assetType === "etf" && (
-                      <button
-                        onClick={() => setSparplanModalStock(stock)}
-                        className={`rounded-md border px-2 py-1 text-xs ${
-                          stock.sparplan?.active
-                            ? "bg-green-100 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-400"
-                            : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                const price = prices.get(stock.symbol.toUpperCase());
+                const currentPrice = price?.price ?? 0;
+
+                const marketValue = assetType === "cash" ? stock.shares : stock.shares * currentPrice;
+
+                const costValue = assetType !== "cash" && stock.costBasis ? stock.shares * stock.costBasis : 0;
+                const gain = costValue > 0 ? marketValue - costValue : 0;
+                const gainPercent = costValue > 0 ? (gain / costValue) * 100 : 0;
+
+                return (
+                  <tr key={stock.id} className="border-t border-zinc-200 dark:border-zinc-800">
+                    <td className="p-2 sticky left-0 bg-white dark:bg-zinc-900 z-10">
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          assetType === "crypto"
+                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                            : assetType === "etf"
+                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                            : assetType === "cash"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                         }`}
-                        title={
-                          stock.sparplan?.active
-                            ? `Active: €${stock.sparplan.monthlyAmount}/month on day ${stock.sparplan.executionDay}`
-                            : "Set up Sparplan"
-                        }
                       >
-                        {stock.sparplan?.active ? `€${stock.sparplan.monthlyAmount}/mo` : "Sparplan"}
-                      </button>
-                    )}
-                    {assetType !== "cash" && (
-                      <button
-                        onClick={() => setSellModalStock({ stock, price: currentPrice })}
-                        className="rounded-md border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        Sell
-                      </button>
-                    )}
-                    <button
-                      onClick={() => removeStock(stock.id)}
-                      className="rounded-md border border-zinc-200 dark:border-zinc-800 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs"
+                        {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
+                      </span>
+                    </td>
+                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">{stock.symbol}</td>
+                    <td className="p-2 text-right">
+                      {assetType === "cash" ? "-" : formatNumber(stock.shares, privacyMode)}
+                    </td>
+                    <td className="p-2 text-right">
+                      {assetType === "cash"
+                        ? "-"
+                        : stock.costBasis
+                        ? formatCurrencyDetailed(stock.costBasis, currency, privacyMode)
+                        : "-"}
+                    </td>
+                    <td className="p-2 text-right">
+                      {assetType === "cash" ? (
+                        <span className="text-zinc-500">Cash</span>
+                      ) : loading ? (
+                        <span className="text-zinc-400">Loading...</span>
+                      ) : price && currentPrice > 0 ? (
+                        formatCurrencyDetailed(currentPrice, currency, privacyMode)
+                      ) : (
+                        <span className="text-red-500 dark:text-red-400 text-xs" title="Failed to fetch price. Click 'Refresh Prices' to retry.">
+                          Error
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2 text-right font-semibold">{formatCurrency(marketValue, currency, privacyMode)}</td>
+                    <td
+                      className={`p-2 text-right ${
+                        assetType === "cash"
+                          ? "text-zinc-500"
+                          : gain >= 0
+                          ? "text-green-600 dark:text-green-500"
+                          : "text-red-600 dark:text-red-500"
+                      }`}
                     >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {assetType === "cash"
+                        ? "-"
+                        : stock.costBasis
+                        ? (
+                            <>
+                              {formatCurrency(gain, currency, privacyMode)} ({formatPercent(gainPercent, privacyMode)})
+                            </>
+                          )
+                        : "-"}
+                    </td>
+                    <td className="p-2">
+                      <select
+                        value={stock.goalId || ""}
+                        onChange={(e) => updateStock(stock.id, { goalId: e.target.value || undefined })}
+                        className="text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-1 py-0.5"
+                      >
+                        <option value="">None</option>
+                        {goals.map((goal) => (
+                          <option key={goal.id} value={goal.id}>
+                            {goal.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-2">{stock.purchaseDateISO ?? "-"}</td>
+                    <td className="p-2 text-right space-x-2">
+                      <button
+                        onClick={() => setEditingStock(stock)}
+                        className="rounded-md border border-blue-200 dark:border-blue-800 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        title="Edit holding details"
+                      >
+                        Edit
+                      </button>
+                      {assetType === "etf" && (
+                        <button
+                          onClick={() => setSparplanModalStock(stock)}
+                          className={`rounded-md border px-2 py-1 text-xs ${
+                            stock.sparplan?.active
+                              ? "bg-green-100 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-400"
+                              : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          }`}
+                          title={
+                            stock.sparplan?.active
+                              ? `Active: €${stock.sparplan.monthlyAmount}/month on day ${stock.sparplan.executionDay}`
+                              : "Set up Sparplan"
+                          }
+                        >
+                          {stock.sparplan?.active ? `€${stock.sparplan.monthlyAmount}/mo` : "Sparplan"}
+                        </button>
+                      )}
+                      {assetType !== "cash" && (
+                        <button
+                          onClick={() => setSellModalStock({ stock, price: currentPrice })}
+                          className="rounded-md border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          Sell
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeStock(stock.id)}
+                        className="rounded-md border border-zinc-200 dark:border-zinc-800 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -712,70 +927,56 @@ export default function PortfolioPage() {
 
             return (
               <div key={stock.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-                {/* Header */}
-                <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
-                  <h3 className="font-semibold font-mono text-lg">{stock.symbol}</h3>
-                </div>
-
-                {/* Chart Section */}
-                <div className="border-b border-zinc-200 dark:border-zinc-800">
-                  <button
-                    onClick={() => setExpandedChart(isChartExpanded ? null : stock.symbol)}
-                    className="w-full p-4 text-left flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors"
-                  >
-                    <span className="text-sm font-medium">Price Chart</span>
-                    <span className="text-sm text-zinc-500">{isChartExpanded ? "Hide" : "Show"}</span>
-                  </button>
-                  {isChartExpanded && (
-                    <div className="p-4 bg-white dark:bg-zinc-950">
-                      <StockChart symbol={stock.symbol} type={stock.type} height={280} />
-                    </div>
-                  )}
-                </div>
-
-                {/* News Section */}
-                {stockNews.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800">
                   <div>
+                    <div className="text-sm font-semibold">{stock.symbol}</div>
+                    <div className="text-xs text-zinc-500">
+                      {stock.type === "crypto" ? "Crypto" : stock.type === "etf" ? "ETF / Index" : stock.type === "cash" ? "Cash" : "Stock"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    {stock.type !== "cash" && (
+                      <button
+                        onClick={() => setExpandedChart(isChartExpanded ? null : stock.symbol)}
+                        className="rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        {isChartExpanded ? "Hide chart" : "Show chart"}
+                      </button>
+                    )}
                     <button
                       onClick={() => setExpandedNews(isNewsExpanded ? null : stock.symbol)}
-                      className="w-full p-4 text-left flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors"
+                      className="rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     >
-                      <span className="text-sm font-medium">Latest News</span>
-                      <span className="text-sm text-zinc-500">
-                        {isNewsExpanded ? "Hide" : "Show"} {stockNews.length} articles
-                      </span>
+                      {isNewsExpanded ? "Hide news" : "Show news"}
                     </button>
-                    {isNewsExpanded && (
-                      <div className="p-4 space-y-3 bg-white dark:bg-zinc-950">
-                        {stockNews.map((article, idx) => (
-                          <a
-                            key={idx}
-                            href={article.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex gap-3 p-3 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors"
-                          >
-                            {article.thumbnail && (
-                              <img
-                                src={article.thumbnail}
-                                alt=""
-                                className="w-20 h-20 object-cover rounded flex-shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm line-clamp-2 mb-1">
-                                {article.title}
-                              </div>
-                              <div className="text-xs text-zinc-500">
-                                {article.publisher}
-                                {article.publishedAt && (
-                                  <> · {new Date(article.publishedAt).toLocaleDateString()}</>
-                                )}
-                              </div>
-                            </div>
-                          </a>
-                        ))}
-                      </div>
+                  </div>
+                </div>
+
+                {isChartExpanded && stock.type !== "cash" && (
+                  <div className="bg-white dark:bg-zinc-950 px-4 py-4">
+                    <StockChart symbol={stock.symbol} type={stock.type} height={260} />
+                  </div>
+                )}
+
+                {isNewsExpanded && (
+                  <div className="px-4 py-4 bg-zinc-50 dark:bg-zinc-900/40 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
+                    {stockNews.length === 0 ? (
+                      <div className="text-sm text-zinc-500">No recent news</div>
+                    ) : (
+                      stockNews.slice(0, 5).map((article, idx) => (
+                        <a
+                          key={idx}
+                          href={article.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block group"
+                        >
+                          <div className="text-sm font-medium group-hover:text-blue-600">{article.title}</div>
+                          <div className="text-xs text-zinc-500">
+                            {article.publisher} • {article.publishedAt ? new Date(article.publishedAt).toLocaleString() : ""}
+                          </div>
+                        </a>
+                      ))
                     )}
                   </div>
                 )}
@@ -786,42 +987,38 @@ export default function PortfolioPage() {
       )}
 
       {sparplanModalStock && (
-        <SparplanModal
-          stock={sparplanModalStock}
-          onClose={() => setSparplanModalStock(null)}
-        />
+        <SparplanModal stock={sparplanModalStock} onClose={() => setSparplanModalStock(null)} />
       )}
 
       {sellModalStock && (
-        <SellModal
-          stock={sellModalStock.stock}
-          currentPrice={sellModalStock.price}
-          onClose={() => setSellModalStock(null)}
-        />
+        <SellModal stock={sellModalStock.stock} onClose={() => setSellModalStock(null)} currentPrice={sellModalStock.price} />
       )}
 
-      {showRevolutImport && (
-        <RevolutImport
-          owner={activeTab === "carolina" ? "carolina" : "simon"}
-          onClose={() => setShowRevolutImport(false)}
-        />
-      )}
-
-      {/* Edit Stock Modal */}
       {editingStock && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingStock(null)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setEditingStock(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-lg font-semibold mb-4">Edit {editingStock.symbol}</h2>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              updateStock(editingStock.id, {
-                shares: parseFloat(formData.get('shares') as string) || editingStock.shares,
-                costBasis: formData.get('costBasis') ? parseFloat(formData.get('costBasis') as string) : editingStock.costBasis,
-                purchaseDateISO: (formData.get('purchaseDate') as string) || editingStock.purchaseDateISO,
-              });
-              setEditingStock(null);
-            }} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                updateStock(editingStock.id, {
+                  shares: parseFloat(formData.get("shares") as string) || editingStock.shares,
+                  costBasis: formData.get("costBasis")
+                    ? parseFloat(formData.get("costBasis") as string)
+                    : editingStock.costBasis,
+                  purchaseDateISO: (formData.get("purchaseDate") as string) || editingStock.purchaseDateISO,
+                });
+                setEditingStock(null);
+              }}
+              className="space-y-4"
+            >
               <div>
                 <label className="block text-sm font-medium mb-1">
                   {editingStock.type === "cash" ? "Amount (EUR)" : "Shares"}
@@ -842,7 +1039,7 @@ export default function PortfolioPage() {
                     name="costBasis"
                     type="number"
                     step="any"
-                    defaultValue={editingStock.costBasis}
+                    defaultValue={editingStock.costBasis ?? ""}
                     placeholder="Optional"
                     className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-3 py-2"
                   />
@@ -853,7 +1050,7 @@ export default function PortfolioPage() {
                 <input
                   name="purchaseDate"
                   type="date"
-                  defaultValue={editingStock.purchaseDateISO}
+                  defaultValue={editingStock.purchaseDateISO ?? ""}
                   className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-3 py-2"
                 />
               </div>

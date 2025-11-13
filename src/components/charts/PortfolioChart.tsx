@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -9,16 +9,16 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Line,
 } from "recharts";
 import { useFinanceStore } from "@/store/finance-store";
-import { formatCurrency } from "@/lib/privacy";
 import type { PortfolioSnapshot } from "@/types/finance";
 
-// Minimal tooltip props to keep TypeScript happy while accessing payload
-interface PortfolioTooltipProps {
-  active?: boolean;
-  payload?: ReadonlyArray<{ value: number }>;
-  label?: string | number;
+export type PortfolioRange = "1d" | "1w" | "1m" | "ytd" | "1y" | "max";
+
+interface BenchmarkPoint {
+  date: string;
+  close: number;
 }
 
 interface PortfolioChartProps {
@@ -26,81 +26,150 @@ interface PortfolioChartProps {
   currentValue: number;
   height?: number;
   baselineValue?: number;
+  range: PortfolioRange;
+  benchmarkSeries?: BenchmarkPoint[] | null;
+  benchmarkLabel?: string | null;
 }
 
-interface DataPoint {
+interface TooltipPayloadItem {
+  value: number | null;
+  dataKey?: string;
+  color?: string;
+}
+
+interface ChartPoint {
   date: string;
-  value: number;
+  portfolio: number | null;
+  benchmark: number | null;
 }
 
-export function PortfolioChart({ portfolioHistory, currentValue, height = 300, baselineValue }: PortfolioChartProps) {
+export function getPortfolioRangeStart(range: PortfolioRange, today: Date) {
+  const start = new Date(today);
+  switch (range) {
+    case "1d":
+      start.setDate(today.getDate() - 1);
+      break;
+    case "1w":
+      start.setDate(today.getDate() - 7);
+      break;
+    case "1m":
+      start.setMonth(today.getMonth() - 1);
+      break;
+    case "ytd":
+      start.setMonth(0, 1); // January 1st of current year
+      break;
+    case "1y":
+      start.setFullYear(today.getFullYear() - 1);
+      break;
+    case "max":
+      start.setFullYear(2000);
+      break;
+  }
+  return start;
+}
+
+export function PortfolioChart({
+  portfolioHistory,
+  currentValue,
+  height = 300,
+  baselineValue,
+  range,
+  benchmarkSeries,
+  benchmarkLabel,
+}: PortfolioChartProps) {
   const privacyMode = useFinanceStore((s) => s.privacyMode);
-  const [range, setRange] = useState("1mo");
 
-  const data = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const today = new Date(todayStr);
+  const { data, effectiveBaseline, lastValue, formatter, benchmarkActive } = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const startDate = getPortfolioRangeStart(range, today);
+    const startDateStr = startDate.toISOString().split("T")[0];
 
-    // Calculate date range based on selection
-    const startDate = new Date(today);
-    switch (range) {
-      case "1d":
-        startDate.setDate(today.getDate() - 1);
-        break;
-      case "5d":
-        startDate.setDate(today.getDate() - 5);
-        break;
-      case "1mo":
-        startDate.setMonth(today.getMonth() - 1);
-        break;
-      case "6mo":
-        startDate.setMonth(today.getMonth() - 6);
-        break;
-      case "1y":
-        startDate.setFullYear(today.getFullYear() - 1);
-        break;
-      case "all":
-        // Show all data
-        startDate.setFullYear(2000);
-        break;
-    }
-    const startDateStr = startDate.toISOString().split('T')[0];
+    const portfolioByDate = new Map<string, number>();
+    portfolioHistory.forEach((snapshot) => {
+      if (snapshot.dateISO >= startDateStr) {
+        portfolioByDate.set(snapshot.dateISO, snapshot.investmentValue);
+      }
+    });
+    portfolioByDate.set(todayStr, currentValue);
 
-    // Filter snapshots based on range using total portfolio value
-    let filteredSnapshots = portfolioHistory
-      .filter((snapshot) => snapshot.dateISO >= startDateStr)
-      .map((snapshot) => ({
-        date: snapshot.dateISO,
-        value: snapshot.investmentValue, // Only track invested assets (exclude cash)
-      }))
+    let portfolioPoints = Array.from(portfolioByDate.entries())
+      .map(([date, value]) => ({ date, value }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Always include today's current total value
-    const todayIndex = filteredSnapshots.findIndex(s => s.date === todayStr);
-    if (todayIndex >= 0) {
-      filteredSnapshots[todayIndex].value = currentValue;
-    } else {
-      filteredSnapshots.push({ date: todayStr, value: currentValue });
-      filteredSnapshots.sort((a, b) => a.date.localeCompare(b.date));
-    }
-
-    // Inject a synthetic baseline point if we have a baseline value and not enough history
-    if (baselineValue !== undefined) {
-      const firstDate = filteredSnapshots[0]?.date ?? todayStr;
-      const firstValue = filteredSnapshots[0]?.value ?? currentValue;
+    if (baselineValue !== undefined && portfolioPoints.length > 0) {
+      const firstValue = portfolioPoints[0].value;
       if (Math.abs(firstValue - baselineValue) > 0.5) {
-        const baseDate = new Date(firstDate);
-        baseDate.setDate(baseDate.getDate() - 1);
-        const baselineDateISO = baseDate.toISOString().split('T')[0];
-        filteredSnapshots = [
-          { date: baselineDateISO, value: baselineValue },
-          ...filteredSnapshots,
-        ];
+        const baselineDate = new Date(portfolioPoints[0].date);
+        baselineDate.setDate(baselineDate.getDate() - 1);
+        const baselineDateStr = baselineDate.toISOString().split("T")[0];
+        portfolioPoints = [{ date: baselineDateStr, value: baselineValue }, ...portfolioPoints];
       }
     }
 
-    return filteredSnapshots;
-  }, [portfolioHistory, currentValue, range, baselineValue]);
+    if (portfolioPoints.length === 0) {
+      portfolioPoints = [{ date: todayStr, value: currentValue }];
+    }
+
+    const benchmarkMap = new Map<string, number>();
+    if (benchmarkSeries && benchmarkSeries.length > 0) {
+      benchmarkSeries.forEach((point) => {
+        const dateKey = point.date.split("T")[0];
+        if (dateKey >= startDateStr) {
+          benchmarkMap.set(dateKey, point.close);
+        }
+      });
+    }
+
+    const dateSet = new Set<string>();
+    portfolioPoints.forEach((p) => dateSet.add(p.date));
+    benchmarkMap.forEach((_value, date) => dateSet.add(date));
+    const sortedDates = Array.from(dateSet).sort((a, b) => a.localeCompare(b));
+
+    const portfolioMap = new Map(portfolioPoints.map((p) => [p.date, p.value] as const));
+    const firstPortfolioValue = portfolioPoints[0]?.value ?? currentValue;
+
+    const firstBenchmarkDate = sortedDates.find((date) => benchmarkMap.has(date));
+    const initialBenchmarkClose = firstBenchmarkDate ? benchmarkMap.get(firstBenchmarkDate)! : undefined;
+
+    const chartPoints: ChartPoint[] = sortedDates
+      .map((date) => {
+        const portfolioValue = portfolioMap.get(date) ?? null;
+        const benchmarkClose = benchmarkMap.get(date);
+        let benchmarkValue: number | null = null;
+        if (
+          benchmarkClose !== undefined &&
+          firstPortfolioValue > 0 &&
+          initialBenchmarkClose !== undefined &&
+          initialBenchmarkClose > 0
+        ) {
+          benchmarkValue = firstPortfolioValue * (benchmarkClose / initialBenchmarkClose);
+        }
+        return {
+          date,
+          portfolio: portfolioValue,
+          benchmark: benchmarkValue,
+        };
+      })
+      .filter((point) => point.portfolio !== null || point.benchmark !== null);
+
+    const effectiveBaselineValue =
+      baselineValue !== undefined ? baselineValue : portfolioPoints[0]?.value ?? currentValue;
+    const lastPortfolioValue = portfolioPoints[portfolioPoints.length - 1]?.value ?? currentValue;
+
+    return {
+      data: chartPoints,
+      effectiveBaseline: effectiveBaselineValue,
+      lastValue: lastPortfolioValue,
+      benchmarkActive: benchmarkMap.size > 0,
+      formatter: new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "EUR",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
+    };
+  }, [baselineValue, currentValue, portfolioHistory, range, benchmarkSeries]);
 
   if (data.length === 0) {
     return (
@@ -110,37 +179,17 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
     );
   }
 
-  // Calculate change based on range
-  const effectiveBaseline = baselineValue !== undefined ? baselineValue : data[0]?.value || 0;
-  const lastValue = data[data.length - 1]?.value || 0;
   const change = lastValue - effectiveBaseline;
-  const changePercent = effectiveBaseline > 0 ? (change / effectiveBaseline) * 100 : 0;
   const isPositive = change >= 0;
 
-  const formatter = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-
-  const ranges = [
-    { label: "1D", value: "1d" },
-    { label: "5D", value: "5d" },
-    { label: "1M", value: "1mo" },
-    { label: "6M", value: "6mo" },
-    { label: "1Y", value: "1y" },
-    { label: "All", value: "all" },
-  ];
-
   const renderTooltip = useCallback(
-    (props: PortfolioTooltipProps) => {
-      const { active, payload, label } = props;
+    ({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<TooltipPayloadItem>; label?: string | number }) => {
       if (!active || !payload || payload.length === 0) {
         return null;
       }
 
-      const value = payload[0]?.value ?? 0;
+      const portfolioEntry = payload.find((item) => item.dataKey === "portfolio");
+      const benchmarkEntry = payload.find((item) => item.dataKey === "benchmark");
 
       return (
         <div
@@ -159,106 +208,104 @@ export function PortfolioChart({ portfolioHistory, currentValue, height = 300, b
               marginBottom: "4px",
             }}
           >
-            {new Date((label ?? "") as string).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
+            {label
+              ? new Date(String(label)).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : ""}
           </div>
-          <div
-            style={{
-              color: isPositive ? "#22c55e" : "#ef4444",
-              fontWeight: 600,
-            }}
-          >
-            {privacyMode ? "•••••" : formatter.format(value as number)}
-          </div>
+          {portfolioEntry && portfolioEntry.value != null && (
+            <div
+              style={{
+                color: isPositive ? "#22c55e" : "#ef4444",
+                fontWeight: 600,
+              }}
+            >
+              {privacyMode ? "•••••" : formatter.format(Number(portfolioEntry.value))}
+            </div>
+          )}
+          {benchmarkEntry && benchmarkEntry.value != null && (
+            <div
+              style={{
+                color: "#2563eb",
+                fontWeight: 600,
+                marginTop: "4px",
+              }}
+            >
+              {`${benchmarkLabel ?? "Benchmark"}: ${formatter.format(Number(benchmarkEntry.value))}`}
+            </div>
+          )}
         </div>
       );
     },
-    [formatter, isPositive, privacyMode]
+    [formatter, isPositive, privacyMode, benchmarkLabel]
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div
-          className={`text-sm font-medium ${
-            isPositive ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-          }`}
-        >
-          {privacyMode
-            ? "••••• (•••%)"
-            : `${isPositive ? "+" : ""}${formatter.format(change)} (${isPositive ? "+" : ""}${changePercent.toFixed(2)}%)`}
-        </div>
-        <div className="flex gap-1">
-          {ranges.map((r) => (
-            <button
-              key={r.value}
-              onClick={() => setRange(r.value)}
-              className={`px-2 py-1 text-xs rounded ${
-                range === r.value
-                  ? "bg-blue-500 text-white"
-                  : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={data} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="portfolioGradientGreen" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4} />
-              <stop offset="50%" stopColor="#22c55e" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="#22c55e" stopOpacity={0.05} />
-            </linearGradient>
-            <linearGradient id="portfolioGradientRed" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
-              <stop offset="50%" stopColor="#ef4444" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 11, fill: "#71717a" }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(value) => {
-              const date = new Date(value);
-              return `${date.getMonth() + 1}/${date.getDate()}`;
-            }}
-            minTickGap={30}
-          />
-          <YAxis
-            tick={{ fontSize: 11, fill: "#71717a" }}
-            axisLine={false}
-            tickLine={false}
-            domain={["auto", "auto"]}
-            tickFormatter={(value) => privacyMode ? "•••" : formatter.format(value)}
-            width={80}
-          />
-          <Tooltip
-            cursor={{ stroke: isPositive ? "#22c55e" : "#ef4444", strokeWidth: 1, strokeDasharray: "4 4" }}
-            content={renderTooltip}
-          />
-          <Area
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+        <defs>
+          <linearGradient id="portfolioGradientGreen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4} />
+            <stop offset="50%" stopColor="#22c55e" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#22c55e" stopOpacity={0.05} />
+          </linearGradient>
+          <linearGradient id="portfolioGradientRed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
+            <stop offset="50%" stopColor="#ef4444" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fontSize: 11, fill: "#71717a" }}
+          axisLine={false}
+          tickLine={false}
+          minTickGap={30}
+          tickFormatter={(value) => {
+            const date = new Date(value);
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+          }}
+        />
+        <YAxis
+          tick={{ fontSize: 11, fill: "#71717a" }}
+          axisLine={false}
+          tickLine={false}
+          domain={["auto", "auto"]}
+          tickFormatter={(value) => (privacyMode ? "•••" : formatter.format(Number(value)))}
+          width={80}
+        />
+        <Tooltip
+          cursor={{ stroke: isPositive ? "#22c55e" : "#ef4444", strokeWidth: 1, strokeDasharray: "4 4" }}
+          content={renderTooltip}
+        />
+        <Area
+          type="monotone"
+          dataKey="portfolio"
+          stroke={isPositive ? "#22c55e" : "#ef4444"}
+          strokeWidth={3}
+          fill={isPositive ? "url(#portfolioGradientGreen)" : "url(#portfolioGradientRed)"}
+          fillOpacity={1}
+          animationDuration={800}
+          animationEasing="ease-out"
+          connectNulls
+        />
+        {benchmarkActive && (
+          <Line
             type="monotone"
-            dataKey="value"
-            stroke={isPositive ? "#22c55e" : "#ef4444"}
-            strokeWidth={3}
-            fill={isPositive ? "url(#portfolioGradientGreen)" : "url(#portfolioGradientRed)"}
-            fillOpacity={1}
-            animationDuration={800}
-            animationEasing="ease-out"
+            dataKey="benchmark"
+            stroke="#2563eb"
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+            strokeDasharray="6 3"
           />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+        )}
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
