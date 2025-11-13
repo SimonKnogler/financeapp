@@ -951,7 +951,7 @@ export default function PortfolioPage() {
           <div>
             <h1 className="text-xl font-semibold">Portfolio</h1>
             {lastUpdate && (
-              <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
+            <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
             )}
             {activeAccount && (
               <div className="text-xs text-zinc-500">{activeAccount.name}</div>
@@ -1151,7 +1151,7 @@ export default function PortfolioPage() {
           </div>
         </div>
         {performanceData.length === 0 ? (
-          <div className="rounded-md border border-slate-700 bg-slate-800/60 p-4 text-sm text-slate-300">
+          <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 text-sm text-zinc-600 dark:text-zinc-300">
             Not enough history to chart yet. Keep the app open to build a performance trail.
           </div>
         ) : (
@@ -1166,8 +1166,8 @@ export default function PortfolioPage() {
                 onClick={() => setRange(option.value)}
                 className={`rounded-md px-3 py-1.5 transition-colors ${
                   range === option.value
-                    ? "bg-blue-500 text-white shadow"
-                    : "text-slate-300 hover:bg-slate-800"
+                    ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow"
+                    : "text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50"
                 }`}
                 aria-pressed={range === option.value}
                 type="button"
@@ -1181,7 +1181,7 @@ export default function PortfolioPage() {
             <select
               value={benchmark}
               onChange={(event) => setBenchmark(event.target.value)}
-              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60"
             >
               {BENCHMARK_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1204,8 +1204,8 @@ export default function PortfolioPage() {
           onClick={() => setActiveTab("total")}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === "total"
-              ? "border-blue-500 text-blue-400"
-              : "border-transparent text-slate-400 hover:text-slate-200"
+              ? "border-blue-500 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
           }`}
         >
           Total
@@ -1214,8 +1214,8 @@ export default function PortfolioPage() {
           onClick={() => setActiveTab("carolina")}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === "carolina"
-              ? "border-purple-500 text-purple-400"
-              : "border-transparent text-slate-400 hover:text-slate-200"
+              ? "border-purple-500 text-purple-600 dark:text-purple-400"
+              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
           }`}
         >
           Carolina
@@ -1224,16 +1224,16 @@ export default function PortfolioPage() {
           onClick={() => setActiveTab("simon")}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === "simon"
-              ? "border-green-500 text-green-400"
-              : "border-transparent text-slate-400 hover:text-slate-200"
+              ? "border-green-500 text-green-600 dark:text-green-400"
+              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
           }`}
         >
           Simon
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg">
-        <div className="mb-3 text-sm font-semibold text-slate-200">Investment Performance</div>
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
+        <div className="mb-3 font-semibold">Investment Performance</div>
         <PortfolioChart
           portfolioHistory={ownerHistory}
           currentValue={investmentValue}
@@ -1461,7 +1461,7 @@ export default function PortfolioPage() {
                         {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
                       </span>
                     </td>
-                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">
+                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-slate-950 z-10">
                       {stock.symbol}
                     </td>
                     <td className="p-2 text-right">
@@ -1491,7 +1491,7 @@ export default function PortfolioPage() {
                     <td
                       className={`p-2 text-right ${
                         assetType === "cash"
-                          ? "text-slate-400"
+                          ? "text-zinc-500"
                           : gain >= 0
                           ? "text-emerald-400"
                           : "text-rose-400"
@@ -1583,7 +1583,7 @@ export default function PortfolioPage() {
                 <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800">
                   <div>
                     <div className="text-sm font-semibold">{stock.symbol}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-zinc-500">
                       {stock.type === "crypto" ? "Crypto" : stock.type === "etf" ? "ETF / Index" : stock.type === "cash" ? "Cash" : "Stock"}
                     </div>
                   </div>
@@ -1614,7 +1614,7 @@ export default function PortfolioPage() {
                 {isNewsExpanded && (
                   <div className="px-4 py-4 bg-zinc-50 dark:bg-zinc-900/40 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
                     {stockNews.length === 0 ? (
-                      <div className="text-sm text-slate-500">No recent news</div>
+                      <div className="text-sm text-zinc-500">No recent news</div>
                     ) : (
                       stockNews.slice(0, 5).map((article, idx) => (
                         <a
@@ -1625,7 +1625,7 @@ export default function PortfolioPage() {
                           className="block group"
                         >
                           <div className="text-sm font-medium group-hover:text-blue-600">{article.title}</div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-zinc-500">
                             {article.publisher} • {article.publishedAt ? new Date(article.publishedAt).toLocaleString() : ""}
                           </div>
                         </a>

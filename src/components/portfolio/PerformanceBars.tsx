@@ -40,12 +40,12 @@ export function PerformanceBars({ data, currency }: PerformanceBarsProps) {
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
           <XAxis
             dataKey="period"
-            tick={{ fill: "rgba(226, 232, 240, 0.8)", fontSize: 12 }}
+            tick={{ fill: "#475569", fontSize: 12 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "rgba(226, 232, 240, 0.8)", fontSize: 12 }}
+            tick={{ fill: "#475569", fontSize: 12 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(value) =>
@@ -56,19 +56,21 @@ export function PerformanceBars({ data, currency }: PerformanceBarsProps) {
                 : `${Number(value).toFixed(0)}`
             }
           />
-          <ReferenceLine y={0} stroke="rgba(148, 163, 184, 0.4)" />
+          <ReferenceLine y={0} stroke="rgba(148, 163, 184, 0.6)" />
           <Tooltip
             cursor={{ fill: "rgba(148, 163, 184, 0.1)" }}
             content={({ active, payload, label }) => {
               if (!active || !payload || payload.length === 0) return null;
               const entry = payload[0].payload as PerformancePoint;
               return (
-                <div className="rounded-md border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-100 shadow-lg">
-                  <div className="text-sm font-semibold text-white">{label}</div>
-                  <div className="mt-1 text-slate-300">
+                <div className="rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-700 shadow-lg">
+                  <div className="text-sm font-semibold text-zinc-900">{label}</div>
+                  <div className="mt-1 text-zinc-600">
                     Change: {tooltipFormatter(entry.change)}
                   </div>
-                  <div className="text-slate-400">{entry.percent.toFixed(2)}%</div>
+                  <div className={entry.change >= 0 ? "text-green-600" : "text-red-600"}>
+                    {entry.percent.toFixed(2)}%
+                  </div>
                 </div>
               );
             }}
