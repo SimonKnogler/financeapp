@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useFinanceStore } from "@/store/finance-store";
 import { fetchStockPrices, fetchStockPrice } from "@/lib/stock-prices";
 import { fetchStockNewsMultiple } from "@/lib/stock-news";
 import { StockChart } from "@/components/charts/StockChart";
-import { PortfolioChart, type PortfolioRange, getPortfolioRangeStart } from "@/components/charts/PortfolioChart";
+import { PortfolioChart, type PortfolioRange, type PortfolioValueMode, getPortfolioRangeStart } from "@/components/charts/PortfolioChart";
 import { SparplanModal } from "@/components/portfolio/SparplanModal";
 import { SellModal } from "@/components/portfolio/SellModal";
 import { RevolutImport } from "@/components/portfolio/RevolutImport";
+import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
@@ -88,10 +89,13 @@ export default function PortfolioPage() {
   const addPortfolioSnapshot = useFinanceStore((s) => s.addPortfolioSnapshot);
   const updatePortfolioSnapshot = useFinanceStore((s) => s.updatePortfolioSnapshot);
   const goals = useFinanceStore((s) => s.goals);
+  const portfolioAccounts = useFinanceStore((s) => s.portfolioAccounts);
   const currency = useFinanceStore((s) => s.assumptions.currency);
   const privacyMode = useFinanceStore((s) => s.privacyMode);
+  const togglePrivacyMode = useFinanceStore((s) => s.togglePrivacyMode);
 
   const [activeTab, setActiveTab] = useState<TabView>("total");
+  const [activeAccountId, setActiveAccountId] = useState<string>("all");
   const [range, setRange] = useState<PortfolioRange>("1m");
   const [benchmark, setBenchmark] = useState<string>("none");
   const [benchmarkSeries, setBenchmarkSeries] = useState<BenchmarkSeriesPoint[] | null>(null);
@@ -102,6 +106,8 @@ export default function PortfolioPage() {
   const [costBasis, setCostBasis] = useState<string>("");
   const [purchaseDateISO, setPurchaseDateISO] = useState<string>("");
   const [assetType, setAssetType] = useState<"stock" | "crypto" | "etf" | "cash">("stock");
+  const [valueMode, setValueMode] = useState<PortfolioValueMode>("absolute");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(() => portfolioAccounts[0]?.id ?? "");
 
   const [prices, setPrices] = useState<Map<string, StockPrice>>(new Map());
   const [news, setNews] = useState<Map<string, StockNews[]>>(new Map());
@@ -113,6 +119,104 @@ export default function PortfolioPage() {
   const [sellModalStock, setSellModalStock] = useState<{ stock: StockHolding; price: number } | null>(null);
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
   const [showRevolutImport, setShowRevolutImport] = useState(false);
+
+  const addFormRef = useRef<HTMLFormElement | null>(null);
+  const scrollToAddForm = useCallback(() => {
+    addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  useEffect(() => {
+    if (activeAccountId !== "all") {
+      if (selectedAccountId !== activeAccountId) {
+        setSelectedAccountId(activeAccountId);
+      }
+      return;
+    }
+    const firstAccountId = portfolioAccounts[0]?.id ?? "";
+    if (!selectedAccountId && firstAccountId) {
+      setSelectedAccountId(firstAccountId);
+      return;
+    }
+    const hasSelected = portfolioAccounts.some((account) => account.id === selectedAccountId);
+    if (!hasSelected) {
+      setSelectedAccountId(firstAccountId);
+    }
+  }, [activeAccountId, portfolioAccounts, selectedAccountId]);
+
+  const searchItems = useMemo<GlobalSearchItem[]>(() => {
+    const items: GlobalSearchItem[] = [];
+    const uniqueSymbols = new Map<string, StockHolding>();
+
+    stocks.forEach((stock) => {
+      uniqueSymbols.set(stock.symbol.toUpperCase(), stock);
+    });
+
+    uniqueSymbols.forEach((stock, symbol) => {
+      items.push({
+        id: `holding-${symbol}`,
+        type: "holding",
+        label: symbol,
+        hint: `${stock.type.toUpperCase()} • ${stock.owner === "household" ? "Total" : stock.owner}`,
+        action: () => {
+          setActiveTab(stock.owner === "carolina" || stock.owner === "simon" ? stock.owner : "total");
+          setActiveAccountId(stock.accountId ?? "all");
+          setSymbol(symbol);
+          setAssetType(stock.type);
+          scrollToAddForm();
+        },
+      });
+    });
+
+    portfolioAccounts.forEach((account) => {
+      items.push({
+        id: `account-${account.id}`,
+        type: "account",
+        label: account.name,
+        hint: account.description ?? "Portfolio account",
+        action: () => {
+          setActiveAccountId(account.id);
+        },
+      });
+    });
+
+    const userItems: Array<{ owner: TabView; label: string }> = [
+      { owner: "total", label: "Total portfolio" },
+      { owner: "carolina", label: "Carolina" },
+      { owner: "simon", label: "Simon" },
+    ];
+
+    userItems.forEach(({ owner, label }) => {
+      items.push({
+        id: `user-${owner}`,
+        type: "user",
+        label,
+        hint: "Switch owner view",
+        action: () => {
+          setActiveTab(owner);
+          setActiveAccountId("all");
+        },
+      });
+    });
+
+    const popularCrypto = ["BTC", "ETH", "SOL", "ADA", "DOGE"];
+    popularCrypto.forEach((symbol) => {
+      items.push({
+        id: `crypto-${symbol}`,
+        type: "crypto",
+        label: `${symbol} (crypto)`,
+        hint: "Quick add crypto position",
+        action: () => {
+          setActiveTab("total");
+          setActiveAccountId("all");
+          setAssetType("crypto");
+          setSymbol(symbol);
+          scrollToAddForm();
+        },
+      });
+    });
+
+    return items;
+  }, [stocks, portfolioAccounts, scrollToAddForm, setActiveAccountId, setActiveTab, setAssetType, setSymbol]);
 
   const selectedBenchmark = useMemo(() => {
     return BENCHMARK_OPTIONS.find((option) => option.value === benchmark) ?? BENCHMARK_OPTIONS[0];
@@ -434,6 +538,7 @@ export default function PortfolioPage() {
       purchaseDateISO: purchaseDateISO || undefined,
       type: assetType,
       owner,
+      accountId: selectedAccountId || undefined,
     });
     setSymbol("");
     setShares("0");
@@ -442,7 +547,21 @@ export default function PortfolioPage() {
     setAssetType("cash");
   }
 
-  const filteredStocks = activeTab === "total" ? stocks : stocks.filter((s) => s.owner === activeTab);
+  const filteredStocks = useMemo(() => {
+    const ownerFiltered =
+      activeTab === "total" ? stocks : stocks.filter((s) => s.owner === activeTab);
+    if (activeAccountId === "all") {
+      return ownerFiltered;
+    }
+    return ownerFiltered.filter((s) => s.accountId === activeAccountId);
+  }, [stocks, activeTab, activeAccountId]);
+
+  const activeAccount = useMemo(() => {
+    if (activeAccountId === "all") {
+      return null;
+    }
+    return portfolioAccounts.find((account) => account.id === activeAccountId) ?? null;
+  }, [activeAccountId, portfolioAccounts]);
 
   const cashValue = filteredStocks
     .filter((s) => s.type === "cash")
@@ -480,10 +599,12 @@ export default function PortfolioPage() {
 
   const dailyChangeDisplay = hasPrevious
     ? privacyMode
-      ? "••••• (•••%)"
+      ? "•••••"
+      : valueMode === "percentage"
+      ? `${formatPercent(dailyChangePercent, false)} Today`
       : `${dailyIsPositive ? "+" : "−"}${formatCurrency(Math.abs(dailyChangeValue), currency, false)} (${formatPercent(dailyChangePercent, false)})`
     : privacyMode
-    ? "••••• (•••%)"
+    ? "•••••"
     : "Awaiting history";
 
   const rangeBaseline = rangePerformance.baseline ?? investmentValue;
@@ -491,43 +612,106 @@ export default function PortfolioPage() {
   const rangeChangePercent = rangeBaseline !== 0 ? (rangeChangeValue / rangeBaseline) * 100 : 0;
   const rangeIsPositive = rangeChangeValue >= 0;
   const rangePerformanceDisplay = privacyMode
-    ? "••••• (•••%)"
+    ? "•••••"
+    : valueMode === "percentage"
+    ? formatPercent(rangeChangePercent, false)
     : `${rangeIsPositive ? "+" : "−"}${formatCurrency(Math.abs(rangeChangeValue), currency, false)} (${formatPercent(rangeChangePercent, false)})`;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Portfolio</h1>
-          {lastUpdate && (
-            <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {activeTab !== "total" && (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold">Portfolio</h1>
+            {lastUpdate && (
+              <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
+            )}
+            {activeAccount && (
+              <div className="text-xs text-zinc-500">{activeAccount.name}</div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activeTab !== "total" && (
+              <button
+                onClick={() => setShowRevolutImport(true)}
+                className="rounded-md border border-purple-200 dark:border-purple-800 px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                title="Import positions from Revolut CSV"
+              >
+                Import Revolut
+              </button>
+            )}
             <button
-              onClick={() => setShowRevolutImport(true)}
-              className="rounded-md border border-purple-200 dark:border-purple-800 px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
-              title="Import positions from Revolut CSV"
+              onClick={resetCostBasisToCurrentPrices}
+              disabled={loading || stocks.filter((s) => s.type !== "cash").length === 0}
+              className="rounded-md border border-blue-200 dark:border-blue-800 px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
+              title="Reset all cost bases to current market prices (starts gain/loss tracking from today)"
             >
-              Import Revolut
+              Reset Cost Basis
             </button>
-          )}
-          <button
-            onClick={resetCostBasisToCurrentPrices}
-            disabled={loading || stocks.filter((s) => s.type !== "cash").length === 0}
-            className="rounded-md border border-blue-200 dark:border-blue-800 px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
-            title="Reset all cost bases to current market prices (starts gain/loss tracking from today)"
-          >
-            Reset Cost Basis
-          </button>
-          <button
-            onClick={() => refreshPrices(true)}
-            disabled={loading}
-            className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
-          >
-            {loading ? "Refreshing..." : "Refresh Prices"}
-          </button>
+            <button
+              onClick={() => refreshPrices(true)}
+              disabled={loading}
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+            >
+              {loading ? "Refreshing..." : "Refresh Prices"}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <GlobalSearch items={searchItems} />
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={activeAccountId}
+              onChange={(event) => setActiveAccountId(event.target.value)}
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm"
+            >
+              <option value="all">All accounts</option>
+              {portfolioAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+            <div className="inline-flex overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+              <button
+                type="button"
+                onClick={() => setValueMode("absolute")}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  valueMode === "absolute"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                Absolute
+              </button>
+              <button
+                type="button"
+                onClick={() => setValueMode("percentage")}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  valueMode === "percentage"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                %
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={togglePrivacyMode}
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              {privacyMode ? "Show values" : "Hide values"}
+            </button>
+            <button
+              type="button"
+              onClick={scrollToAddForm}
+              className="rounded-md bg-blue-600 text-white px-3 py-1.5 text-sm hover:bg-blue-700"
+            >
+              Add transaction
+            </button>
+          </div>
         </div>
       </div>
 
@@ -642,6 +826,7 @@ export default function PortfolioPage() {
           range={range}
           benchmarkSeries={benchmarkSeries ?? undefined}
           benchmarkLabel={selectedBenchmark.type !== "none" ? selectedBenchmark.label : undefined}
+          valueMode={valueMode}
         />
       </div>
 
@@ -721,7 +906,22 @@ export default function PortfolioPage() {
       )}
 
       {activeTab !== "total" && (
-        <form onSubmit={onAdd} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
+        <form
+          ref={addFormRef}
+          onSubmit={onAdd}
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4"
+        >
+          <select
+            value={selectedAccountId}
+            onChange={(event) => setSelectedAccountId(event.target.value)}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5"
+          >
+            {portfolioAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
           <select
             value={assetType}
             onChange={(e) => setAssetType(e.target.value as "stock" | "crypto" | "etf" | "cash")}

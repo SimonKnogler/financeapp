@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addMonths, startOfMonth } from "date-fns";
-import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding, StoredDocument } from "@/types/finance";
+import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding, StoredDocument, PortfolioAccount } from "@/types/finance";
 import type { GermanTaxScenario } from "@/types/tax";
 
 function firstOfCurrentMonthISO(): string {
@@ -93,6 +93,9 @@ export interface FinanceStore extends FinanceState {
   updateTaxScenario: (id: string, updates: Partial<GermanTaxScenario>) => void;
   removeTaxScenario: (id: string) => void;
   duplicateTaxScenario: (id: string) => void;
+  addPortfolioAccount: (account: Omit<PortfolioAccount, "id">) => void;
+  updatePortfolioAccount: (id: string, updates: Partial<PortfolioAccount>) => void;
+  removePortfolioAccount: (id: string) => void;
   // Documents
   addDocument: (document: StoredDocument) => void;
   updateDocument: (id: string, updates: Partial<StoredDocument>) => void;
@@ -106,6 +109,15 @@ const defaultState: FinanceState & {
   documents: StoredDocument[];
 } = {
   accounts: [],
+  portfolioAccounts: [
+    {
+      id: "portfolio_main",
+      name: "Main Portfolio",
+      owner: "household",
+      description: "All holdings combined",
+      benchmarkSymbol: "VWCE.DE",
+    },
+  ],
   incomes: [],
   expenses: [],
   stocks: [], // Both stocks and crypto stored here
@@ -145,6 +157,26 @@ export const useFinanceStore = create<FinanceStore>()(
         set((state) => ({
           accounts: state.accounts.filter((a) => a.id !== id),
         })),
+      addPortfolioAccount: (account) =>
+        set((state) => ({
+          portfolioAccounts: [
+            ...state.portfolioAccounts,
+            { ...account, id: generateId("port") },
+          ],
+        })),
+      updatePortfolioAccount: (id, updates) =>
+        set((state) => ({
+          portfolioAccounts: state.portfolioAccounts.map((account) =>
+            account.id === id ? { ...account, ...updates } : account
+          ),
+        })),
+      removePortfolioAccount: (id) =>
+        set((state) => ({
+          portfolioAccounts: state.portfolioAccounts.filter((account) => account.id !== id),
+          stocks: state.stocks.map((stock) =>
+            stock.accountId === id ? { ...stock, accountId: undefined } : stock
+          ),
+        })),
       addIncome: (input) =>
         set((state) => ({
           incomes: [...state.incomes, { ...input, id: generateId("inc") }],
@@ -170,9 +202,18 @@ export const useFinanceStore = create<FinanceStore>()(
           expenses: state.expenses.filter((x) => x.id !== id),
         })),
       addStock: (input) =>
-        set((state) => ({
-          stocks: [...state.stocks, { ...input, id: generateId("stock") }],
-        })),
+        set((state) => {
+          const fallbackAccountId =
+            input.accountId ??
+            state.portfolioAccounts[0]?.id ??
+            defaultState.portfolioAccounts[0].id;
+          return {
+            stocks: [
+              ...state.stocks,
+              { ...input, id: generateId("stock"), accountId: fallbackAccountId },
+            ],
+          };
+        }),
       updateStock: (id, updates) =>
         set((state) => ({
           stocks: state.stocks.map((x) => (x.id === id ? { ...x, ...updates } : x)),
@@ -243,11 +284,22 @@ export const useFinanceStore = create<FinanceStore>()(
         }),
       resetAll: () => set(() => ({ ...defaultState })),
       replaceWithCloudData: (data) =>
-        set((state) => ({
-          accounts: data.accounts ?? [],
-          incomes: data.incomes ?? [],
-          expenses: data.expenses ?? [],
-          stocks: data.stocks ?? [],
+        set((state) => {
+          const normalizedAccounts =
+            data.portfolioAccounts && data.portfolioAccounts.length > 0
+              ? data.portfolioAccounts
+              : state.portfolioAccounts && state.portfolioAccounts.length > 0
+              ? state.portfolioAccounts
+              : defaultState.portfolioAccounts;
+          return {
+            accounts: data.accounts ?? [],
+            portfolioAccounts: normalizedAccounts,
+            incomes: data.incomes ?? [],
+            expenses: data.expenses ?? [],
+            stocks: (data.stocks ?? []).map((stock) => ({
+              ...stock,
+              accountId: stock.accountId ?? normalizedAccounts[0]?.id ?? defaultState.portfolioAccounts[0].id,
+            })),
           portfolioHistory: (data.portfolioHistory ?? []).map((snapshot) => ({
             ...snapshot,
             timestamp: snapshot.timestamp ?? Date.now(),
@@ -261,15 +313,16 @@ export const useFinanceStore = create<FinanceStore>()(
           taxScenarios: Array.isArray(data.taxScenarios)
             ? data.taxScenarios.map((scenario) => normalizeTaxScenario(scenario))
             : state.taxScenarios ?? [],
-          documents: Array.isArray(data.documents)
-            ? data.documents
-                .map((doc) => ({
-                  ...doc,
-                  uploadedAt: doc.uploadedAt ?? new Date().toISOString(),
-                }))
-                .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-            : state.documents ?? [],
-        })),
+            documents: Array.isArray(data.documents)
+              ? data.documents
+                  .map((doc) => ({
+                    ...doc,
+                    uploadedAt: doc.uploadedAt ?? new Date().toISOString(),
+                  }))
+                  .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+              : state.documents ?? [],
+          };
+        }),
       addTaxScenario: (scenario) =>
         set((state) => ({
           taxScenarios: [...state.taxScenarios, normalizeTaxScenario(scenario)],
@@ -316,7 +369,7 @@ export const useFinanceStore = create<FinanceStore>()(
     }),
     {
       name: "finance-app-v1",
-      version: 13, // v13 ensures default currency is EUR
+      version: 14, // v14 introduces portfolio accounts
       partialize: (state) => state,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
@@ -421,6 +474,24 @@ export const useFinanceStore = create<FinanceStore>()(
               ...(persistedState.assumptions || {}),
               currency: "EUR",
             },
+          };
+        }
+        if (version < 14) {
+          const existingAccounts = persistedState.portfolioAccounts;
+          const normalizedAccounts =
+            existingAccounts && existingAccounts.length > 0
+              ? existingAccounts
+              : defaultState.portfolioAccounts;
+          persistedState = {
+            ...persistedState,
+            portfolioAccounts: normalizedAccounts,
+            stocks: (persistedState.stocks || []).map((stock: any) => ({
+              ...stock,
+              accountId:
+                stock.accountId ??
+                normalizedAccounts[0]?.id ??
+                defaultState.portfolioAccounts[0].id,
+            })),
           };
         }
         return persistedState;

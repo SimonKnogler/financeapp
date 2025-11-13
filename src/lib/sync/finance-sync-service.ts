@@ -12,7 +12,7 @@ const CLIENT_ID_STORAGE_KEY = "finance-sync-client-id";
 
 export const FINANCE_SYNC_VERSION = 1;
 
-import type { FinanceState, StoredDocument } from "@/types/finance";
+import type { FinanceState, StoredDocument, PortfolioAccount } from "@/types/finance";
 
 export type FinanceSyncState = FinanceState & {
   customAssetReturns: Record<string, number>;
@@ -196,6 +196,18 @@ function normaliseDocument(
   };
 }
 
+function normalisePortfolioAccount(
+  account: Partial<PortfolioAccount> | undefined
+): PortfolioAccount {
+  return {
+    id: account?.id ?? randomId("port"),
+    name: normaliseString(account?.name) ?? "Portfolio",
+    description: normaliseString(account?.description),
+    owner: account?.owner ?? "household",
+    benchmarkSymbol: normaliseString(account?.benchmarkSymbol) ?? null,
+  };
+}
+
 export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncData {
   const accounts = sortById((state.accounts ?? []).map((account) => cleanObject({
     ...account,
@@ -212,6 +224,11 @@ export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncDa
     shares: normaliseNumber(stock.shares) ?? 0,
     costBasis: normaliseNumber(stock.costBasis),
   })));
+
+  const portfolioAccounts = sortById(
+    (state.portfolioAccounts ?? [])
+      .map((account) => cleanObject(normalisePortfolioAccount(account)))
+  );
 
   const expenses = sortById(
     (state.expenses ?? [])
@@ -255,6 +272,7 @@ export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncDa
 
   return {
     accounts,
+    portfolioAccounts,
     stocks,
     expenses,
     incomes,

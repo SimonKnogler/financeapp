@@ -48,6 +48,14 @@ export type AssetType = "stock" | "crypto" | "etf" | "cash";
 
 export type PortfolioOwner = "simon" | "carolina" | "household";
 
+export interface PortfolioAccount {
+  id: string;
+  name: string;
+  description?: string;
+  owner: PortfolioOwner | "joint";
+  benchmarkSymbol?: string | null;
+}
+
 export interface StockHolding {
   id: string;
   symbol: string; // e.g., "AAPL", "GOOGL", "BTC", "ETH", or account name for cash
@@ -58,6 +66,7 @@ export interface StockHolding {
   sparplan?: SparplanConfig; // optional: savings plan configuration
   owner: PortfolioOwner; // who owns this holding
   goalId?: string; // optional: link to a financial goal
+  accountId?: string; // which portfolio account this holding belongs to
 }
 
 export interface SparplanConfig {
@@ -140,6 +149,7 @@ export interface MonteCarloResult {
 
 export interface FinanceState {
   accounts: Account[];
+  portfolioAccounts: PortfolioAccount[];
   incomes: IncomeItem[];
   expenses: ExpenseItem[];
   stocks: StockHolding[];

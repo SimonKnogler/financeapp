@@ -18,6 +18,7 @@ export function CloudSync() {
   const incomes = useFinanceStore((s) => s.incomes);
   const goals = useFinanceStore((s) => s.goals);
   const portfolioHistory = useFinanceStore((s) => s.portfolioHistory);
+  const portfolioAccounts = useFinanceStore((s) => s.portfolioAccounts);
   const assumptions = useFinanceStore((s) => s.assumptions);
   const customAssetReturns = useFinanceStore((s) => s.customAssetReturns);
   const documents = useFinanceStore((s) => s.documents);
@@ -45,6 +46,7 @@ export function CloudSync() {
     try {
       const result = await uploadToCloud({
         accounts,
+        portfolioAccounts,
         stocks,
         expenses,
         incomes,

@@ -15,6 +15,7 @@ import { useFinanceStore } from "@/store/finance-store";
 import type { PortfolioSnapshot } from "@/types/finance";
 
 export type PortfolioRange = "1d" | "1w" | "1m" | "ytd" | "1y" | "max";
+export type PortfolioValueMode = "absolute" | "percentage";
 
 interface BenchmarkPoint {
   date: string;
@@ -29,6 +30,7 @@ interface PortfolioChartProps {
   range: PortfolioRange;
   benchmarkSeries?: BenchmarkPoint[] | null;
   benchmarkLabel?: string | null;
+  valueMode: PortfolioValueMode;
 }
 
 interface TooltipPayloadItem {
@@ -76,10 +78,11 @@ export function PortfolioChart({
   range,
   benchmarkSeries,
   benchmarkLabel,
+  valueMode,
 }: PortfolioChartProps) {
   const privacyMode = useFinanceStore((s) => s.privacyMode);
 
-  const { data, effectiveBaseline, lastValue, formatter, benchmarkActive } = useMemo(() => {
+  const { data, benchmarkActive, formatter, isPositive } = useMemo(() => {
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
     const startDate = getPortfolioRangeStart(range, today);
@@ -168,19 +171,46 @@ export function PortfolioChart({
       baselineValue !== undefined ? baselineValue : portfolioPoints[0]?.value ?? currentValue;
     const lastPortfolioValue = portfolioPoints[portfolioPoints.length - 1]?.value ?? currentValue;
 
+    const absoluteChange = lastPortfolioValue - effectiveBaselineValue;
+    const absoluteChangePercent =
+      effectiveBaselineValue > 0 ? absoluteChange / effectiveBaselineValue : 0;
+
+    const percentagePoints =
+      valueMode === "percentage"
+        ? chartPoints.map((point) => ({
+            ...point,
+            portfolio:
+              point.portfolio !== null && effectiveBaselineValue > 0
+                ? point.portfolio / effectiveBaselineValue - 1
+                : null,
+            benchmark:
+              point.benchmark !== null && normalizationPortfolioValue > 0
+                ? point.benchmark / normalizationPortfolioValue - 1
+                : null,
+          }))
+        : chartPoints;
+
+    const formatter =
+      valueMode === "percentage"
+        ? new Intl.NumberFormat(undefined, {
+            style: "percent",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : new Intl.NumberFormat(undefined, {
+            style: "currency",
+            currency: "EUR",
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          });
+
     return {
-      data: chartPoints,
-      effectiveBaseline: effectiveBaselineValue,
-      lastValue: lastPortfolioValue,
+      data: percentagePoints,
       benchmarkActive: benchmarkMap.size > 0,
-      formatter: new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: "EUR",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }),
+      formatter,
+      isPositive: valueMode === "percentage" ? absoluteChangePercent >= 0 : absoluteChange >= 0,
     };
-  }, [baselineValue, currentValue, portfolioHistory, range, benchmarkSeries]);
+  }, [baselineValue, currentValue, portfolioHistory, range, benchmarkSeries, valueMode]);
 
   if (data.length === 0) {
     return (
@@ -189,9 +219,6 @@ export function PortfolioChart({
       </div>
     );
   }
-
-  const change = lastValue - effectiveBaseline;
-  const isPositive = change >= 0;
 
   const renderTooltip = useCallback(
     ({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<TooltipPayloadItem>; label?: string | number }) => {
@@ -234,7 +261,13 @@ export function PortfolioChart({
                 fontWeight: 600,
               }}
             >
-              {privacyMode ? "•••••" : formatter.format(Number(portfolioEntry.value))}
+              {privacyMode
+                ? "•••••"
+                : valueMode === "percentage"
+                ? `${Number(portfolioEntry.value) >= 0 ? "+" : ""}${formatter.format(
+                    Number(portfolioEntry.value)
+                  )}`
+                : formatter.format(Number(portfolioEntry.value))}
             </div>
           )}
           {benchmarkEntry && benchmarkEntry.value != null && (
@@ -245,14 +278,34 @@ export function PortfolioChart({
                 marginTop: "4px",
               }}
             >
-              {`${benchmarkLabel ?? "Benchmark"}: ${formatter.format(Number(benchmarkEntry.value))}`}
+              {benchmarkLabel ?? "Benchmark"}:{" "}
+              {privacyMode
+                ? "•••••"
+                : valueMode === "percentage"
+                ? `${Number(benchmarkEntry.value) >= 0 ? "+" : ""}${formatter.format(
+                    Number(benchmarkEntry.value)
+                  )}`
+                : formatter.format(Number(benchmarkEntry.value))}
             </div>
           )}
         </div>
       );
     },
-    [formatter, isPositive, privacyMode, benchmarkLabel]
+    [formatter, isPositive, privacyMode, benchmarkLabel, valueMode]
   );
+
+  const yTickFormatter = (value: number) => {
+    if (privacyMode) {
+      return "•••";
+    }
+    if (valueMode === "percentage") {
+      const percentValue = value * 100;
+      return `${percentValue >= 0 ? "+" : ""}${percentValue.toFixed(0)}%`;
+    }
+    return formatter.format(value);
+  };
+
+  const cursorColor = isPositive ? "#22c55e" : "#ef4444";
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -286,17 +339,17 @@ export function PortfolioChart({
           axisLine={false}
           tickLine={false}
           domain={["auto", "auto"]}
-          tickFormatter={(value) => (privacyMode ? "•••" : formatter.format(Number(value)))}
+          tickFormatter={(value) => yTickFormatter(Number(value))}
           width={80}
         />
         <Tooltip
-          cursor={{ stroke: isPositive ? "#22c55e" : "#ef4444", strokeWidth: 1, strokeDasharray: "4 4" }}
+          cursor={{ stroke: cursorColor, strokeWidth: 1, strokeDasharray: "4 4" }}
           content={renderTooltip}
         />
         <Area
           type="monotone"
           dataKey="portfolio"
-          stroke={isPositive ? "#22c55e" : "#ef4444"}
+          stroke={cursorColor}
           strokeWidth={3}
           fill={isPositive ? "url(#portfolioGradientGreen)" : "url(#portfolioGradientRed)"}
           fillOpacity={1}
