@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useFinanceStore } from "@/store/finance-store";
 import { fetchStockPrices, fetchStockPrice } from "@/lib/stock-prices";
@@ -11,6 +12,7 @@ import { SellModal } from "@/components/portfolio/SellModal";
 import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
 import { AllocationRadialChart } from "@/components/portfolio/AllocationRadialChart";
+import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
@@ -33,6 +35,7 @@ interface StockMetadata {
   sector: string | null;
   industry: string | null;
   country: string | null;
+  category: string | null;
   fetchedAt: number;
 }
 
@@ -197,6 +200,7 @@ export default function PortfolioPage() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>(() => portfolioAccounts[0]?.id ?? "");
   const [allocationDimension, setAllocationDimension] = useState<AllocationDimension>("positions");
   const [stockMetadata, setStockMetadata] = useState<Map<string, StockMetadata>>(new Map());
+  const [performancePeriod, setPerformancePeriod] = useState<"yearly" | "monthly">("yearly");
 
   const [prices, setPrices] = useState<Map<string, StockPrice>>(new Map());
   const [news, setNews] = useState<Map<string, StockNews[]>>(new Map());
@@ -486,6 +490,7 @@ export default function PortfolioPage() {
                 sector: payload.sector ?? null,
                 industry: payload.industry ?? null,
                 country: payload.country ?? null,
+                category: payload.category ?? null,
                 fetchedAt: Date.now(),
               });
               return next;
@@ -501,6 +506,7 @@ export default function PortfolioPage() {
                 sector: null,
                 industry: null,
                 country: null,
+                category: null,
                 fetchedAt: Date.now(),
               });
               return next;
@@ -786,7 +792,11 @@ export default function PortfolioPage() {
             key = "Digital Assets";
             break;
           }
-          key = metadata?.sector ?? metadata?.industry ?? fallbackSector(symbol);
+          key =
+            metadata?.sector ??
+            metadata?.industry ??
+            metadata?.category ??
+            fallbackSector(symbol);
           break;
         case "assets":
           key = getHoldingAccountName(holding);
@@ -838,6 +848,47 @@ export default function PortfolioPage() {
     getHoldingValue,
     stockMetadata,
   ]);
+
+  const performanceData = useMemo(() => {
+    if (ownerHistory.length === 0) {
+      return [];
+    }
+
+    const groups = new Map<string, { start: number; end: number }>();
+    const sorted = [...ownerHistory].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+
+    sorted.forEach((snapshot) => {
+      const date = new Date(snapshot.dateISO);
+      const key =
+        performancePeriod === "yearly"
+          ? `${date.getFullYear()}`
+          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, { start: snapshot.investmentValue, end: snapshot.investmentValue });
+      } else {
+        const entry = groups.get(key)!;
+        entry.end = snapshot.investmentValue;
+      }
+    });
+
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+    const limitedKeys =
+      performancePeriod === "yearly"
+        ? sortedKeys.slice(-6)
+        : sortedKeys.slice(-12); // last 12 months or last 6 years
+
+    return limitedKeys.map((key) => {
+      const entry = groups.get(key)!;
+      const change = entry.end - entry.start;
+      const percent = entry.start > 0 ? (change / entry.start) * 100 : 0;
+      return {
+        period: key,
+        change,
+        percent,
+      };
+    });
+  }, [ownerHistory, performancePeriod]);
 
   const cashValue = filteredStocks
     .filter((s) => s.type === "cash")
@@ -894,16 +945,16 @@ export default function PortfolioPage() {
     : `${rangeIsPositive ? "+" : "−"}${formatCurrency(Math.abs(rangeChangeValue), currency, false)} (${formatPercent(rangeChangePercent, false)})`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-3xl bg-slate-950 px-4 py-6 text-slate-100 md:px-6">
       <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold">Portfolio</h1>
             {lastUpdate && (
-              <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
+            <div className="text-xs text-slate-400">Last updated: {lastUpdate.toLocaleTimeString()}</div>
             )}
             {activeAccount && (
-              <div className="text-xs text-zinc-500">{activeAccount.name}</div>
+              <div className="text-xs text-slate-400">{activeAccount.name}</div>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -955,8 +1006,8 @@ export default function PortfolioPage() {
                 onClick={() => setValueMode("absolute")}
                 className={`px-3 py-1.5 text-sm transition-colors ${
                   valueMode === "absolute"
-                    ? "bg-blue-600 text-white"
-                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? "bg-blue-500 text-white"
+                    : "text-slate-300 hover:bg-slate-800"
                 }`}
               >
                 Absolute
@@ -966,8 +1017,8 @@ export default function PortfolioPage() {
                 onClick={() => setValueMode("percentage")}
                 className={`px-3 py-1.5 text-sm transition-colors ${
                   valueMode === "percentage"
-                    ? "bg-blue-600 text-white"
-                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? "bg-blue-500 text-white"
+                    : "text-slate-300 hover:bg-slate-800"
                 }`}
               >
                 %
@@ -991,17 +1042,19 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 flex flex-wrap items-end justify-between gap-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
-          <div className="text-xs uppercase tracking-wide text-zinc-500">Total portfolio value</div>
-          <div className="text-3xl font-semibold">{formatCurrency(totalValue, currency, privacyMode)}</div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">Total portfolio value</div>
+          <div className="text-3xl font-semibold text-white">
+            {formatCurrency(totalValue, currency, privacyMode)}
+          </div>
           <div
             className={`text-sm font-medium ${
               !hasPrevious || Math.abs(dailyChangeValue) < 0.01
-                ? "text-zinc-500"
+                ? "text-slate-500"
                 : dailyIsPositive
-                ? "text-green-600 dark:text-green-500"
-                : "text-red-600 dark:text-red-500"
+                ? "text-emerald-400"
+                : "text-rose-400"
             }`}
           >
             {dailyChangeDisplay}
@@ -1009,21 +1062,21 @@ export default function PortfolioPage() {
           <div
             className={`text-xs ${
               Math.abs(rangeChangeValue) < 0.01
-                ? "text-zinc-500"
+                ? "text-slate-500"
                 : rangeIsPositive
-                ? "text-green-600 dark:text-green-500"
-                : "text-red-600 dark:text-red-500"
+                ? "text-emerald-400"
+                : "text-rose-400"
             }`}
           >
             Range performance: {rangePerformanceDisplay}
           </div>
         </div>
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="text-sm font-semibold text-slate-200">Allocation</div>
+            <div className="text-xs text-slate-400">
               Distribution across {allocationSummary.label.toLowerCase()}
             </div>
           </div>
@@ -1035,8 +1088,8 @@ export default function PortfolioPage() {
                 onClick={() => setAllocationDimension(option.value)}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   allocationDimension === option.value
-                    ? "bg-blue-600 text-white shadow"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    ? "bg-blue-500 text-white shadow"
+                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                 }`}
               >
                 {option.label}
@@ -1053,6 +1106,58 @@ export default function PortfolioPage() {
           currency={currency}
         />
       </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-200">Performance</div>
+            <div className="text-xs text-slate-400">
+              {performancePeriod === "yearly"
+                ? "Year-over-year portfolio change"
+                : "Month-over-month portfolio change"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex overflow-hidden rounded-full border border-slate-700 bg-slate-800">
+              <button
+                type="button"
+                onClick={() => setPerformancePeriod("yearly")}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  performancePeriod === "yearly"
+                    ? "bg-blue-500 text-white"
+                    : "text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                Yearly
+              </button>
+              <button
+                type="button"
+                onClick={() => setPerformancePeriod("monthly")}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  performancePeriod === "monthly"
+                    ? "bg-blue-500 text-white"
+                    : "text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
+            <Link
+              href="/portfolio/performance"
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              Show more →
+            </Link>
+          </div>
+        </div>
+        {performanceData.length === 0 ? (
+          <div className="rounded-md border border-slate-700 bg-slate-800/60 p-4 text-sm text-slate-300">
+            Not enough history to chart yet. Keep the app open to build a performance trail.
+          </div>
+        ) : (
+          <PerformanceBars data={performanceData} currency={currency} />
+        )}
+      </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-1 text-xs font-medium">
             {PORTFOLIO_RANGE_OPTIONS.map((option) => (
@@ -1061,8 +1166,8 @@ export default function PortfolioPage() {
                 onClick={() => setRange(option.value)}
                 className={`rounded-md px-3 py-1.5 transition-colors ${
                   range === option.value
-                    ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow"
-                    : "text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50"
+                    ? "bg-blue-500 text-white shadow"
+                    : "text-slate-300 hover:bg-slate-800"
                 }`}
                 aria-pressed={range === option.value}
                 type="button"
@@ -1072,11 +1177,11 @@ export default function PortfolioPage() {
             ))}
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-xs uppercase tracking-wide text-zinc-500">Benchmark</span>
+            <span className="text-xs uppercase tracking-wide text-slate-400">Benchmark</span>
             <select
               value={benchmark}
               onChange={(event) => setBenchmark(event.target.value)}
-              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
             >
               {BENCHMARK_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1085,7 +1190,7 @@ export default function PortfolioPage() {
               ))}
             </select>
             {benchmarkLoading && (
-              <span className="text-xs text-zinc-500">Updating…</span>
+              <span className="text-xs text-slate-500">Updating…</span>
             )}
           </div>
         </div>
@@ -1094,13 +1199,13 @@ export default function PortfolioPage() {
         <div className="text-xs text-red-500">{benchmarkError}</div>
       )}
 
-      <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex gap-2 border-b border-slate-800">
         <button
           onClick={() => setActiveTab("total")}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === "total"
-              ? "border-blue-500 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
           Total
@@ -1109,8 +1214,8 @@ export default function PortfolioPage() {
           onClick={() => setActiveTab("carolina")}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === "carolina"
-              ? "border-purple-500 text-purple-600 dark:text-purple-400"
-              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+              ? "border-purple-500 text-purple-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
           Carolina
@@ -1119,16 +1224,16 @@ export default function PortfolioPage() {
           onClick={() => setActiveTab("simon")}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === "simon"
-              ? "border-green-500 text-green-600 dark:text-green-400"
-              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+              ? "border-green-500 text-green-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
           Simon
         </button>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-        <div className="mb-3 font-semibold">Investment Performance</div>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg">
+        <div className="mb-3 text-sm font-semibold text-slate-200">Investment Performance</div>
         <PortfolioChart
           portfolioHistory={ownerHistory}
           currentValue={investmentValue}
@@ -1143,50 +1248,50 @@ export default function PortfolioPage() {
 
       <div className="-mx-2 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
         <div className="flex gap-3 px-2 md:grid md:grid-cols-5 md:px-0">
-          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
-            <div className="text-sm text-zinc-500">Total Portfolio</div>
+          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
+            <div className="text-sm text-slate-400">Total Portfolio</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(totalValue, currency, privacyMode)}
             </div>
-            <div className="text-xs text-zinc-500 mt-1">Investments + Cash</div>
+            <div className="text-xs text-slate-500 mt-1">Investments + Cash</div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
-            <div className="text-sm text-zinc-500">Cash</div>
+          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
+            <div className="text-sm text-slate-400">Cash</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(cashValue, currency, privacyMode)}
             </div>
-            <div className="text-xs text-zinc-500 mt-1">Liquid assets</div>
+            <div className="text-xs text-slate-500 mt-1">Liquid assets</div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
-            <div className="text-sm text-zinc-500">Investments</div>
+          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
+            <div className="text-sm text-slate-400">Investments</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(investmentValue, currency, privacyMode)}
             </div>
-            <div className="text-xs text-zinc-500 mt-1">Stocks, ETFs, Crypto</div>
+            <div className="text-xs text-slate-500 mt-1">Stocks, ETFs, Crypto</div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
-            <div className="text-sm text-zinc-500">Investment Gain/Loss</div>
+          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
+            <div className="text-sm text-slate-400">Investment Gain/Loss</div>
             <div
               className={`text-2xl font-semibold ${
-                totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+                totalGain >= 0 ? "text-emerald-400" : "text-rose-400"
               }`}
             >
               {formatCurrency(totalGain, currency, privacyMode)}
             </div>
             <div
               className={`text-xs ${
-                totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+                totalGain >= 0 ? "text-emerald-400" : "text-rose-400"
               }`}
             >
               {formatPercent(totalGainPercent, privacyMode)} return
             </div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
-            <div className="text-sm text-zinc-500">Active Sparpläne</div>
+          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
+            <div className="text-sm text-slate-400">Active Sparpläne</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(totalMonthlyInvestment, currency, privacyMode)}/mo
             </div>
-            <div className="text-xs text-zinc-500 mt-1">
+            <div className="text-xs text-slate-500 mt-1">
               {activeSparplans.length}{" "}
               {activeSparplans.length === 1 ? "plan" : "plans"}
             </div>
@@ -1217,7 +1322,7 @@ export default function PortfolioPage() {
                   <div className="text-xl font-semibold text-blue-600 dark:text-blue-400">
                     {formatCurrency(allocatedValue, currency, privacyMode)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-1">
+                  <div className="text-xs text-slate-500 mt-1">
                     {allocatedHoldings.length} {allocatedHoldings.length === 1 ? "holding" : "holdings"}
                   </div>
                 </div>
@@ -1356,7 +1461,9 @@ export default function PortfolioPage() {
                         {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
                       </span>
                     </td>
-                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">{stock.symbol}</td>
+                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-slate-950 z-10">
+                      {stock.symbol}
+                    </td>
                     <td className="p-2 text-right">
                       {assetType === "cash" ? "-" : formatNumber(stock.shares, privacyMode)}
                     </td>
@@ -1369,9 +1476,9 @@ export default function PortfolioPage() {
                     </td>
                     <td className="p-2 text-right">
                       {assetType === "cash" ? (
-                        <span className="text-zinc-500">Cash</span>
+                        <span className="text-slate-400">Cash</span>
                       ) : loading ? (
-                        <span className="text-zinc-400">Loading...</span>
+                        <span className="text-slate-500">Loading...</span>
                       ) : price && currentPrice > 0 ? (
                         formatCurrencyDetailed(currentPrice, currency, privacyMode)
                       ) : (
@@ -1384,10 +1491,10 @@ export default function PortfolioPage() {
                     <td
                       className={`p-2 text-right ${
                         assetType === "cash"
-                          ? "text-zinc-500"
+                          ? "text-slate-400"
                           : gain >= 0
-                          ? "text-green-600 dark:text-green-500"
-                          : "text-red-600 dark:text-red-500"
+                          ? "text-emerald-400"
+                          : "text-rose-400"
                       }`}
                     >
                       {assetType === "cash"
@@ -1404,7 +1511,7 @@ export default function PortfolioPage() {
                       <select
                         value={stock.goalId || ""}
                         onChange={(e) => updateStock(stock.id, { goalId: e.target.value || undefined })}
-                        className="text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-1 py-0.5"
+                        className="text-xs rounded border border-slate-700 bg-slate-950 px-1 py-0.5"
                       >
                         <option value="">None</option>
                         {goals.map((goal) => (
@@ -1476,7 +1583,7 @@ export default function PortfolioPage() {
                 <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800">
                   <div>
                     <div className="text-sm font-semibold">{stock.symbol}</div>
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-slate-500">
                       {stock.type === "crypto" ? "Crypto" : stock.type === "etf" ? "ETF / Index" : stock.type === "cash" ? "Cash" : "Stock"}
                     </div>
                   </div>
@@ -1507,7 +1614,7 @@ export default function PortfolioPage() {
                 {isNewsExpanded && (
                   <div className="px-4 py-4 bg-zinc-50 dark:bg-zinc-900/40 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
                     {stockNews.length === 0 ? (
-                      <div className="text-sm text-zinc-500">No recent news</div>
+                      <div className="text-sm text-slate-500">No recent news</div>
                     ) : (
                       stockNews.slice(0, 5).map((article, idx) => (
                         <a
@@ -1518,7 +1625,7 @@ export default function PortfolioPage() {
                           className="block group"
                         >
                           <div className="text-sm font-medium group-hover:text-blue-600">{article.title}</div>
-                          <div className="text-xs text-zinc-500">
+                          <div className="text-xs text-slate-500">
                             {article.publisher} • {article.publishedAt ? new Date(article.publishedAt).toLocaleString() : ""}
                           </div>
                         </a>

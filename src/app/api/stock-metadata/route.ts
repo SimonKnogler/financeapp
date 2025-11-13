@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const upperSymbol = symbol.toUpperCase();
   const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
     upperSymbol
-  )}?modules=assetProfile`;
+  )}?modules=assetProfile,fundProfile,summaryProfile`;
 
   try {
     const response = await fetch(url, {
@@ -33,15 +33,19 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    const result = data?.quoteSummary?.result?.[0]?.assetProfile;
+    const summary = data?.quoteSummary?.result?.[0];
+    const assetProfile = summary?.assetProfile;
+    const fundProfile = summary?.fundProfile;
+    const summaryProfile = summary?.summaryProfile;
 
-    if (!result) {
+    if (!assetProfile && !fundProfile && !summaryProfile) {
       return NextResponse.json(
         {
           symbol: upperSymbol,
           sector: null,
           industry: null,
           country: null,
+          category: null,
         },
         { status: 200 }
       );
@@ -50,9 +54,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         symbol: upperSymbol,
-        sector: result.sector ?? null,
-        industry: result.industry ?? null,
-        country: result.country ?? null,
+        sector: assetProfile?.sector ?? summaryProfile?.sector ?? null,
+        industry: assetProfile?.industry ?? summaryProfile?.industry ?? null,
+        country: assetProfile?.country ?? summaryProfile?.country ?? null,
+        category: fundProfile?.categoryName ?? fundProfile?.investmentStyle ?? null,
       },
       { status: 200 }
     );
