@@ -10,6 +10,7 @@ import { SparplanModal } from "@/components/portfolio/SparplanModal";
 import { SellModal } from "@/components/portfolio/SellModal";
 import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
+import { AllocationRadialChart } from "@/components/portfolio/AllocationRadialChart";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
@@ -26,6 +27,85 @@ interface BenchmarkOption {
 interface BenchmarkSeriesPoint {
   date: string;
   close: number;
+}
+
+type AllocationDimension = "positions" | "type" | "sectors" | "assets" | "countries" | "currencies";
+
+const ALLOCATION_DIMENSIONS: { value: AllocationDimension; label: string }[] = [
+  { value: "positions", label: "Positions" },
+  { value: "type", label: "Type" },
+  { value: "sectors", label: "Sectors" },
+  { value: "assets", label: "Assets" },
+  { value: "countries", label: "Countries" },
+  { value: "currencies", label: "Currencies" },
+];
+
+const SECTOR_BY_SYMBOL: Record<string, string> = {
+  VWCE: "Index Funds",
+  IWDA: "Index Funds",
+  EUNL: "Index Funds",
+  AAPL: "Technology",
+  MSFT: "Technology",
+  GOOGL: "Technology",
+  AMZN: "Consumer Discretionary",
+  TSLA: "Consumer Discretionary",
+  META: "Communication Services",
+  NVDA: "Technology",
+  BTC: "Digital Assets",
+  ETH: "Digital Assets",
+  SOL: "Digital Assets",
+  ADA: "Digital Assets",
+};
+
+const COUNTRY_SUFFIX_MAP: Record<string, string> = {
+  ".DE": "Germany",
+  ".AS": "Netherlands",
+  ".L": "United Kingdom",
+  ".MI": "Italy",
+  ".PA": "France",
+  ".SW": "Switzerland",
+  ".TO": "Canada",
+  ".T": "Japan",
+  ".HK": "Hong Kong",
+  ".SS": "China",
+  ".AX": "Australia",
+  ".SA": "Brazil",
+};
+
+const COUNTRY_SYMBOL_MAP: Record<string, string> = {
+  AAPL: "United States",
+  MSFT: "United States",
+  GOOGL: "United States",
+  AMZN: "United States",
+  TSLA: "United States",
+  META: "United States",
+  NVDA: "United States",
+  VWCE: "Luxembourg",
+  IWDA: "Ireland",
+  EUNL: "Germany",
+  BTC: "Global",
+  ETH: "Global",
+  SOL: "Global",
+  ADA: "Global",
+};
+
+function inferSector(symbol: string): string {
+  const upper = symbol.toUpperCase();
+  return SECTOR_BY_SYMBOL[upper] ?? "Unclassified";
+}
+
+function inferCountry(symbol: string): string {
+  const upper = symbol.toUpperCase();
+  if (COUNTRY_SYMBOL_MAP[upper]) {
+    return COUNTRY_SYMBOL_MAP[upper];
+  }
+  const suffixEntry = Object.entries(COUNTRY_SUFFIX_MAP).find(([suffix]) =>
+    upper.endsWith(suffix)
+  );
+  if (suffixEntry) {
+    return suffixEntry[1];
+  }
+  return "Unspecified";
 }
 
 const PORTFOLIO_RANGE_OPTIONS: { label: string; value: PortfolioRange }[] = [
@@ -108,6 +188,7 @@ export default function PortfolioPage() {
   const [assetType, setAssetType] = useState<"stock" | "crypto" | "etf" | "cash">("stock");
   const [valueMode, setValueMode] = useState<PortfolioValueMode>("absolute");
   const [selectedAccountId, setSelectedAccountId] = useState<string>(() => portfolioAccounts[0]?.id ?? "");
+  const [allocationDimension, setAllocationDimension] = useState<AllocationDimension>("positions");
 
   const [prices, setPrices] = useState<Map<string, StockPrice>>(new Map());
   const [news, setNews] = useState<Map<string, StockNews[]>>(new Map());
@@ -563,6 +644,116 @@ export default function PortfolioPage() {
     return portfolioAccounts.find((account) => account.id === activeAccountId) ?? null;
   }, [activeAccountId, portfolioAccounts]);
 
+  const getHoldingValue = useCallback(
+    (holding: StockHolding) => {
+      if (holding.type === "cash") {
+        return holding.shares;
+      }
+      const price = prices.get(holding.symbol.toUpperCase());
+      if (!price) {
+        return 0;
+      }
+      return holding.shares * price.price;
+    },
+    [prices]
+  );
+
+  const getHoldingCurrency = useCallback(
+    (holding: StockHolding) => {
+      if (holding.type === "cash") {
+        return "EUR";
+      }
+      const price = prices.get(holding.symbol.toUpperCase());
+      return price?.currency ?? "EUR";
+    },
+    [prices]
+  );
+
+  const getHoldingAccountName = useCallback(
+    (holding: StockHolding) => {
+      if (!holding.accountId) {
+        return "Unassigned";
+      }
+      return (
+        portfolioAccounts.find((account) => account.id === holding.accountId)?.name ??
+        "Unassigned"
+      );
+    },
+    [portfolioAccounts]
+  );
+
+  const allocationSummary = useMemo(() => {
+    const label =
+      ALLOCATION_DIMENSIONS.find((dimension) => dimension.value === allocationDimension)?.label ??
+      "Allocation";
+
+    if (filteredStocks.length === 0) {
+      return { label, data: [], total: 0 };
+    }
+
+    const buckets = new Map<string, number>();
+
+    filteredStocks.forEach((holding) => {
+      const value = getHoldingValue(holding);
+      const symbol = holding.symbol.toUpperCase();
+      let key: string;
+
+      switch (allocationDimension) {
+        case "positions":
+          key = symbol;
+          break;
+        case "type":
+          key = holding.type.charAt(0).toUpperCase() + holding.type.slice(1);
+          break;
+        case "sectors":
+          key = inferSector(symbol);
+          break;
+        case "assets":
+          key = getHoldingAccountName(holding);
+          break;
+        case "countries":
+          key = inferCountry(symbol);
+          break;
+        case "currencies":
+          key = getHoldingCurrency(holding);
+          break;
+        default:
+          key = "Other";
+      }
+
+      buckets.set(key, (buckets.get(key) ?? 0) + value);
+    });
+
+    const total = Array.from(buckets.values()).reduce((sum, value) => sum + value, 0);
+    if (total <= 0) {
+      return {
+        label,
+        data: Array.from(buckets.entries()).map(([name]) => ({
+          name,
+          value: 0,
+          percent: 0,
+        })),
+        total: 0,
+      };
+    }
+
+    const data = Array.from(buckets.entries())
+      .map(([name, value]) => ({
+        name,
+        value,
+        percent: value / total,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return { label, data, total };
+  }, [
+    allocationDimension,
+    filteredStocks,
+    getHoldingAccountName,
+    getHoldingCurrency,
+    getHoldingValue,
+  ]);
+
   const cashValue = filteredStocks
     .filter((s) => s.type === "cash")
     .reduce((sum, stock) => sum + stock.shares, 0);
@@ -742,6 +933,41 @@ export default function PortfolioPage() {
             Range performance: {rangePerformanceDisplay}
           </div>
         </div>
+
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+              Distribution across {allocationSummary.label.toLowerCase()}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {ALLOCATION_DIMENSIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setAllocationDimension(option.value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  allocationDimension === option.value
+                    ? "bg-blue-600 text-white shadow"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <AllocationRadialChart
+          title={`${allocationSummary.label} Allocation`}
+          subtitle={valueMode === "percentage" ? "Current share (absolute values)" : undefined}
+          data={allocationSummary.data}
+          totalValue={allocationSummary.total}
+          totalCount={filteredStocks.length}
+          currency={currency}
+        />
+      </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-1 text-xs font-medium">
             {PORTFOLIO_RANGE_OPTIONS.map((option) => (
@@ -830,44 +1056,55 @@ export default function PortfolioPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-          <div className="text-sm text-zinc-500">Total Portfolio</div>
-          <div className="text-2xl font-semibold">{formatCurrency(totalValue, currency, privacyMode)}</div>
-          <div className="text-xs text-zinc-500 mt-1">Investments + Cash</div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-          <div className="text-sm text-zinc-500">Cash</div>
-          <div className="text-2xl font-semibold">{formatCurrency(cashValue, currency, privacyMode)}</div>
-          <div className="text-xs text-zinc-500 mt-1">Liquid assets</div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-          <div className="text-sm text-zinc-500">Investments</div>
-          <div className="text-2xl font-semibold">{formatCurrency(investmentValue, currency, privacyMode)}</div>
-          <div className="text-xs text-zinc-500 mt-1">Stocks, ETFs, Crypto</div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-          <div className="text-sm text-zinc-500">Investment Gain/Loss</div>
-          <div
-            className={`text-2xl font-semibold ${
-              totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-            }`}
-          >
-            {formatCurrency(totalGain, currency, privacyMode)}
+      <div className="-mx-2 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+        <div className="flex gap-3 px-2 md:grid md:grid-cols-5 md:px-0">
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
+            <div className="text-sm text-zinc-500">Total Portfolio</div>
+            <div className="text-2xl font-semibold">
+              {formatCurrency(totalValue, currency, privacyMode)}
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">Investments + Cash</div>
           </div>
-          <div
-            className={`text-xs ${
-              totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-            }`}
-          >
-            {formatPercent(totalGainPercent, privacyMode)} return
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
+            <div className="text-sm text-zinc-500">Cash</div>
+            <div className="text-2xl font-semibold">
+              {formatCurrency(cashValue, currency, privacyMode)}
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">Liquid assets</div>
           </div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-          <div className="text-sm text-zinc-500">Active Sparpläne</div>
-          <div className="text-2xl font-semibold">{formatCurrency(totalMonthlyInvestment, currency, privacyMode)}/mo</div>
-          <div className="text-xs text-zinc-500 mt-1">
-            {activeSparplans.length} {activeSparplans.length === 1 ? "plan" : "plans"}
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
+            <div className="text-sm text-zinc-500">Investments</div>
+            <div className="text-2xl font-semibold">
+              {formatCurrency(investmentValue, currency, privacyMode)}
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">Stocks, ETFs, Crypto</div>
+          </div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
+            <div className="text-sm text-zinc-500">Investment Gain/Loss</div>
+            <div
+              className={`text-2xl font-semibold ${
+                totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+              }`}
+            >
+              {formatCurrency(totalGain, currency, privacyMode)}
+            </div>
+            <div
+              className={`text-xs ${
+                totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+              }`}
+            >
+              {formatPercent(totalGainPercent, privacyMode)} return
+            </div>
+          </div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 md:min-w-0">
+            <div className="text-sm text-zinc-500">Active Sparpläne</div>
+            <div className="text-2xl font-semibold">
+              {formatCurrency(totalMonthlyInvestment, currency, privacyMode)}/mo
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">
+              {activeSparplans.length}{" "}
+              {activeSparplans.length === 1 ? "plan" : "plans"}
+            </div>
           </div>
         </div>
       </div>
