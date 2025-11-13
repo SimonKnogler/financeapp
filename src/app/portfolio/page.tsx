@@ -945,16 +945,16 @@ export default function PortfolioPage() {
     : `${rangeIsPositive ? "+" : "−"}${formatCurrency(Math.abs(rangeChangeValue), currency, false)} (${formatPercent(rangeChangePercent, false)})`;
 
   return (
-    <div className="space-y-6 rounded-3xl bg-slate-950 px-4 py-6 text-slate-100 md:px-6">
+    <div className="space-y-6">
       <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold">Portfolio</h1>
             {lastUpdate && (
-            <div className="text-xs text-slate-400">Last updated: {lastUpdate.toLocaleTimeString()}</div>
+              <div className="text-xs text-zinc-500">Last updated: {lastUpdate.toLocaleTimeString()}</div>
             )}
             {activeAccount && (
-              <div className="text-xs text-slate-400">{activeAccount.name}</div>
+              <div className="text-xs text-zinc-500">{activeAccount.name}</div>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1006,8 +1006,8 @@ export default function PortfolioPage() {
                 onClick={() => setValueMode("absolute")}
                 className={`px-3 py-1.5 text-sm transition-colors ${
                   valueMode === "absolute"
-                    ? "bg-blue-500 text-white"
-                    : "text-slate-300 hover:bg-slate-800"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 Absolute
@@ -1017,8 +1017,8 @@ export default function PortfolioPage() {
                 onClick={() => setValueMode("percentage")}
                 className={`px-3 py-1.5 text-sm transition-colors ${
                   valueMode === "percentage"
-                    ? "bg-blue-500 text-white"
-                    : "text-slate-300 hover:bg-slate-800"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 %
@@ -1042,19 +1042,19 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg flex flex-wrap items-end justify-between gap-4">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 flex flex-wrap items-end justify-between gap-4 shadow-sm">
         <div className="space-y-1">
-          <div className="text-xs uppercase tracking-wide text-slate-400">Total portfolio value</div>
-          <div className="text-3xl font-semibold text-white">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">Total portfolio value</div>
+          <div className="text-3xl font-semibold">
             {formatCurrency(totalValue, currency, privacyMode)}
           </div>
           <div
             className={`text-sm font-medium ${
               !hasPrevious || Math.abs(dailyChangeValue) < 0.01
-                ? "text-slate-500"
+                ? "text-zinc-500"
                 : dailyIsPositive
-                ? "text-emerald-400"
-                : "text-rose-400"
+                ? "text-green-600 dark:text-green-500"
+                : "text-red-600 dark:text-red-500"
             }`}
           >
             {dailyChangeDisplay}
@@ -1062,21 +1062,21 @@ export default function PortfolioPage() {
           <div
             className={`text-xs ${
               Math.abs(rangeChangeValue) < 0.01
-                ? "text-slate-500"
+                ? "text-zinc-500"
                 : rangeIsPositive
-                ? "text-emerald-400"
-                : "text-rose-400"
+                ? "text-green-600 dark:text-green-500"
+                : "text-red-600 dark:text-red-500"
             }`}
           >
             Range performance: {rangePerformanceDisplay}
           </div>
         </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg space-y-4">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-sm font-semibold text-slate-200">Allocation</div>
-            <div className="text-xs text-slate-400">
+            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
               Distribution across {allocationSummary.label.toLowerCase()}
             </div>
           </div>
@@ -1088,8 +1088,8 @@ export default function PortfolioPage() {
                 onClick={() => setAllocationDimension(option.value)}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   allocationDimension === option.value
-                    ? "bg-blue-500 text-white shadow"
-                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    ? "bg-blue-600 text-white shadow"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
                 {option.label}
@@ -1107,25 +1107,25 @@ export default function PortfolioPage() {
         />
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg space-y-4">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-200">Performance</div>
-            <div className="text-xs text-slate-400">
+            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Performance</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
               {performancePeriod === "yearly"
                 ? "Year-over-year portfolio change"
                 : "Month-over-month portfolio change"}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex overflow-hidden rounded-full border border-slate-700 bg-slate-800">
+            <div className="inline-flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
               <button
                 type="button"
                 onClick={() => setPerformancePeriod("yearly")}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   performancePeriod === "yearly"
-                    ? "bg-blue-500 text-white"
-                    : "text-slate-300 hover:bg-slate-700"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 Yearly
@@ -1135,8 +1135,8 @@ export default function PortfolioPage() {
                 onClick={() => setPerformancePeriod("monthly")}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   performancePeriod === "monthly"
-                    ? "bg-blue-500 text-white"
-                    : "text-slate-300 hover:bg-slate-700"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 Monthly
@@ -1144,7 +1144,7 @@ export default function PortfolioPage() {
             </div>
             <Link
               href="/portfolio/performance"
-              className="text-xs text-blue-400 hover:text-blue-300"
+              className="text-xs text-blue-500 hover:text-blue-600"
             >
               Show more →
             </Link>
@@ -1177,11 +1177,11 @@ export default function PortfolioPage() {
             ))}
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-xs uppercase tracking-wide text-slate-400">Benchmark</span>
+            <span className="text-xs uppercase tracking-wide text-zinc-500">Benchmark</span>
             <select
               value={benchmark}
               onChange={(event) => setBenchmark(event.target.value)}
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60"
             >
               {BENCHMARK_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1190,7 +1190,7 @@ export default function PortfolioPage() {
               ))}
             </select>
             {benchmarkLoading && (
-              <span className="text-xs text-slate-500">Updating…</span>
+              <span className="text-xs text-zinc-500">Updating…</span>
             )}
           </div>
         </div>
@@ -1248,50 +1248,50 @@ export default function PortfolioPage() {
 
       <div className="-mx-2 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
         <div className="flex gap-3 px-2 md:grid md:grid-cols-5 md:px-0">
-          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
-            <div className="text-sm text-slate-400">Total Portfolio</div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm md:min-w-0">
+            <div className="text-sm text-zinc-500">Total Portfolio</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(totalValue, currency, privacyMode)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Investments + Cash</div>
+            <div className="text-xs text-zinc-500 mt-1">Investments + Cash</div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
-            <div className="text-sm text-slate-400">Cash</div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm md:min-w-0">
+            <div className="text-sm text-zinc-500">Cash</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(cashValue, currency, privacyMode)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Liquid assets</div>
+            <div className="text-xs text-zinc-500 mt-1">Liquid assets</div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
-            <div className="text-sm text-slate-400">Investments</div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm md:min-w-0">
+            <div className="text-sm text-zinc-500">Investments</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(investmentValue, currency, privacyMode)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Stocks, ETFs, Crypto</div>
+            <div className="text-xs text-zinc-500 mt-1">Stocks, ETFs, Crypto</div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
-            <div className="text-sm text-slate-400">Investment Gain/Loss</div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm md:min-w-0">
+            <div className="text-sm text-zinc-500">Investment Gain/Loss</div>
             <div
               className={`text-2xl font-semibold ${
-                totalGain >= 0 ? "text-emerald-400" : "text-rose-400"
+                totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
               }`}
             >
               {formatCurrency(totalGain, currency, privacyMode)}
             </div>
             <div
               className={`text-xs ${
-                totalGain >= 0 ? "text-emerald-400" : "text-rose-400"
+                totalGain >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
               }`}
             >
               {formatPercent(totalGainPercent, privacyMode)} return
             </div>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-md md:min-w-0">
-            <div className="text-sm text-slate-400">Active Sparpläne</div>
+          <div className="min-w-[190px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm md:min-w-0">
+            <div className="text-sm text-zinc-500">Active Sparpläne</div>
             <div className="text-2xl font-semibold">
               {formatCurrency(totalMonthlyInvestment, currency, privacyMode)}/mo
             </div>
-            <div className="text-xs text-slate-500 mt-1">
+            <div className="text-xs text-zinc-500 mt-1">
               {activeSparplans.length}{" "}
               {activeSparplans.length === 1 ? "plan" : "plans"}
             </div>
@@ -1461,7 +1461,7 @@ export default function PortfolioPage() {
                         {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
                       </span>
                     </td>
-                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-slate-950 z-10">
+                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">
                       {stock.symbol}
                     </td>
                     <td className="p-2 text-right">
@@ -1476,9 +1476,9 @@ export default function PortfolioPage() {
                     </td>
                     <td className="p-2 text-right">
                       {assetType === "cash" ? (
-                        <span className="text-slate-400">Cash</span>
+                        <span className="text-zinc-500">Cash</span>
                       ) : loading ? (
-                        <span className="text-slate-500">Loading...</span>
+                        <span className="text-zinc-500">Loading...</span>
                       ) : price && currentPrice > 0 ? (
                         formatCurrencyDetailed(currentPrice, currency, privacyMode)
                       ) : (
