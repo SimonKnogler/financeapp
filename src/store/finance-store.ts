@@ -116,7 +116,7 @@ const defaultState: FinanceState & {
     projectionYears: 30,
     inflationAnnual: 0.02,
     taxRateEffective: 0.25,
-    currency: "USD",
+    currency: "EUR",
   },
   customAssetReturns: {}, // Persisted custom returns for projection calculations
   cloudSyncToken: 0,
@@ -314,7 +314,7 @@ export const useFinanceStore = create<FinanceStore>()(
     }),
     {
       name: "finance-app-v1",
-      version: 12, // v12 adds shared documents storage metadata
+      version: 13, // v13 ensures default currency is EUR
       partialize: (state) => state,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
@@ -410,6 +410,15 @@ export const useFinanceStore = create<FinanceStore>()(
           persistedState = {
             ...persistedState,
             documents: [],
+          };
+        }
+        if (version < 13) {
+          persistedState = {
+            ...persistedState,
+            assumptions: {
+              ...(persistedState.assumptions || {}),
+              currency: "EUR",
+            },
           };
         }
         return persistedState;
