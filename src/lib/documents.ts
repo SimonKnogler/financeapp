@@ -3,9 +3,34 @@ import { v4 as uuidv4 } from "uuid";
 import type { StoredDocument } from "@/types/finance";
 
 const BUCKET_ID = "important-docs";
+let ensureBucketPromise: Promise<void> | null = null;
 
 function sanitizeFilename(name: string): string {
   return name.trim().replace(/[^a-zA-Z0-9-_\.]+/g, "-");
+}
+
+async function ensureDocumentsBucket(): Promise<void> {
+  if (ensureBucketPromise) {
+    return ensureBucketPromise;
+  }
+
+  ensureBucketPromise = (async () => {
+    try {
+      const response = await fetch("/api/storage/ensure-bucket", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error ?? "Failed to prepare storage bucket.");
+      }
+    } catch (error) {
+      ensureBucketPromise = null;
+      throw error instanceof Error ? error : new Error("Failed to prepare storage bucket.");
+    }
+  })();
+
+  return ensureBucketPromise;
 }
 
 export async function uploadPdfDocument(file: File): Promise<StoredDocument> {
@@ -33,6 +58,8 @@ export async function uploadPdfDocument(file: File): Promise<StoredDocument> {
     throw new Error("Not authenticated");
   }
 
+  await ensureDocumentsBucket();
+
   const safeName = sanitizeFilename(file.name || "document.pdf") || "document.pdf";
   const extension = safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf";
   const filename = `${safeName}${extension}`;
@@ -44,6 +71,11 @@ export async function uploadPdfDocument(file: File): Promise<StoredDocument> {
 
   if (error) {
     console.error("Failed to upload document", error);
+    if (error.message?.toLowerCase().includes("bucket")) {
+      throw new Error(
+        "Storage bucket missing. Please run the Supabase SQL snippet in supabase-schema.sql or set SUPABASE_SERVICE_ROLE_KEY so the app can create it automatically."
+      );
+    }
     throw new Error(error.message ?? "Failed to upload document");
   }
 

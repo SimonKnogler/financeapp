@@ -13,6 +13,7 @@ import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
 import { AllocationRadialChart } from "@/components/portfolio/AllocationRadialChart";
 import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
+import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
@@ -1417,7 +1418,6 @@ export default function PortfolioPage() {
               <tr>
                 <th className="text-left p-2 sticky left-0 bg-zinc-50 dark:bg-zinc-900/50 z-10">Type</th>
                 <th className="text-left p-2 sticky left-[60px] bg-zinc-50 dark:bg-zinc-900/50 z-10">Symbol</th>
-                <th className="text-left p-2">Sector</th>
                 <th className="text-right p-2">Shares</th>
                 <th className="text-right p-2">Cost Basis</th>
                 <th className="text-right p-2">Current Price</th>
@@ -1432,10 +1432,6 @@ export default function PortfolioPage() {
               {filteredStocks.map((stock) => {
                 const assetType = stock.type || "stock";
                 const symbol = stock.symbol.toUpperCase();
-
-                const metadata = stockMetadata.get(symbol);
-                const sectorLabel =
-                  metadata?.sector ?? metadata?.industry ?? metadata?.category ?? fallbackSector(symbol);
 
                 const price = prices.get(symbol);
                 const currentPrice = price?.price ?? 0;
@@ -1466,7 +1462,6 @@ export default function PortfolioPage() {
                     <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">
                       {symbol}
                     </td>
-                    <td className="p-2 text-zinc-600 dark:text-zinc-300">{sectorLabel}</td>
                     <td className="p-2 text-right">
                       {assetType === "cash" ? "-" : formatNumber(stock.shares, privacyMode)}
                     </td>
