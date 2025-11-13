@@ -9,7 +9,14 @@ function sanitizeFilename(name: string): string {
 }
 
 export async function uploadPdfDocument(file: File): Promise<StoredDocument> {
-  if (file.type !== "application/pdf") {
+  const isPdfMime =
+    file.type === "application/pdf" ||
+    file.type === "application/x-pdf" ||
+    file.type === "application/octet-stream" ||
+    file.type === "";
+  const hasPdfExtension = file.name?.toLowerCase().endsWith(".pdf");
+
+  if (!isPdfMime && !hasPdfExtension) {
     throw new Error("Only PDF files are supported at the moment.");
   }
 

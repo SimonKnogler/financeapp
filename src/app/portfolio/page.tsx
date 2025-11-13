@@ -1072,91 +1072,93 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              Distribution across {allocationSummary.label.toLowerCase()}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                Distribution across {allocationSummary.label.toLowerCase()}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {ALLOCATION_DIMENSIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setAllocationDimension(option.value)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    allocationDimension === option.value
+                      ? "bg-blue-600 text-white shadow"
+                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-1">
-            {ALLOCATION_DIMENSIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setAllocationDimension(option.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  allocationDimension === option.value
-                    ? "bg-blue-600 text-white shadow"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <AllocationRadialChart
+            title={`${allocationSummary.label} Allocation`}
+            subtitle={valueMode === "percentage" ? "Current share (absolute values)" : undefined}
+            data={allocationSummary.data}
+            totalValue={allocationSummary.total}
+            totalCount={filteredStocks.length}
+            currency={currency}
+          />
         </div>
-        <AllocationRadialChart
-          title={`${allocationSummary.label} Allocation`}
-          subtitle={valueMode === "percentage" ? "Current share (absolute values)" : undefined}
-          data={allocationSummary.data}
-          totalValue={allocationSummary.total}
-          totalCount={filteredStocks.length}
-          currency={currency}
-        />
-      </div>
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Performance</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              {performancePeriod === "yearly"
-                ? "Year-over-year portfolio change"
-                : "Month-over-month portfolio change"}
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Performance</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                {performancePeriod === "yearly"
+                  ? "Year-over-year portfolio change"
+                  : "Month-over-month portfolio change"}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <button
+                  type="button"
+                  onClick={() => setPerformancePeriod("yearly")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    performancePeriod === "yearly"
+                      ? "bg-blue-600 text-white"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  Yearly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPerformancePeriod("monthly")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    performancePeriod === "monthly"
+                      ? "bg-blue-600 text-white"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  Monthly
+                </button>
+              </div>
+              <Link
+                href="/portfolio/performance"
+                className="text-xs text-blue-500 hover:text-blue-600"
+              >
+                Show more →
+              </Link>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
-              <button
-                type="button"
-                onClick={() => setPerformancePeriod("yearly")}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                  performancePeriod === "yearly"
-                    ? "bg-blue-600 text-white"
-                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                }`}
-              >
-                Yearly
-              </button>
-              <button
-                type="button"
-                onClick={() => setPerformancePeriod("monthly")}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                  performancePeriod === "monthly"
-                    ? "bg-blue-600 text-white"
-                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                }`}
-              >
-                Monthly
-              </button>
+          {performanceData.length === 0 ? (
+            <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 text-sm text-zinc-600 dark:text-zinc-300">
+              Not enough history to chart yet. Keep the app open to build a performance trail.
             </div>
-            <Link
-              href="/portfolio/performance"
-              className="text-xs text-blue-500 hover:text-blue-600"
-            >
-              Show more →
-            </Link>
-          </div>
+          ) : (
+            <PerformanceBars data={performanceData} currency={currency} />
+          )}
         </div>
-        {performanceData.length === 0 ? (
-          <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 text-sm text-zinc-600 dark:text-zinc-300">
-            Not enough history to chart yet. Keep the app open to build a performance trail.
-          </div>
-        ) : (
-          <PerformanceBars data={performanceData} currency={currency} />
-        )}
       </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-1 text-xs font-medium">
@@ -1421,6 +1423,7 @@ export default function PortfolioPage() {
               <tr>
                 <th className="text-left p-2 sticky left-0 bg-zinc-50 dark:bg-zinc-900/50 z-10">Type</th>
                 <th className="text-left p-2 sticky left-[60px] bg-zinc-50 dark:bg-zinc-900/50 z-10">Symbol</th>
+                <th className="text-left p-2">Sector</th>
                 <th className="text-right p-2">Shares</th>
                 <th className="text-right p-2">Cost Basis</th>
                 <th className="text-right p-2">Current Price</th>
@@ -1434,8 +1437,13 @@ export default function PortfolioPage() {
             <tbody>
               {filteredStocks.map((stock) => {
                 const assetType = stock.type || "stock";
+                const symbol = stock.symbol.toUpperCase();
 
-                const price = prices.get(stock.symbol.toUpperCase());
+                const metadata = stockMetadata.get(symbol);
+                const sectorLabel =
+                  metadata?.sector ?? metadata?.industry ?? metadata?.category ?? fallbackSector(symbol);
+
+                const price = prices.get(symbol);
                 const currentPrice = price?.price ?? 0;
 
                 const marketValue = assetType === "cash" ? stock.shares : stock.shares * currentPrice;
@@ -1462,8 +1470,9 @@ export default function PortfolioPage() {
                       </span>
                     </td>
                     <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">
-                      {stock.symbol}
+                      {symbol}
                     </td>
+                    <td className="p-2 text-zinc-600 dark:text-zinc-300">{sectorLabel}</td>
                     <td className="p-2 text-right">
                       {assetType === "cash" ? "-" : formatNumber(stock.shares, privacyMode)}
                     </td>

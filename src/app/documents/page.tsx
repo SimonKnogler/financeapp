@@ -107,7 +107,7 @@ export default function DocumentsPage() {
           <label className="flex items-center gap-2 px-4 py-2 rounded-md border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
             <input
               type="file"
-              accept="application/pdf"
+              accept="application/pdf,application/x-pdf,.pdf"
               className="hidden"
               disabled={uploading}
               onChange={(event) => handleUpload(event.target.files?.[0] ?? null)}
