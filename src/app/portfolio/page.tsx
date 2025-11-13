@@ -12,7 +12,6 @@ import { SellModal } from "@/components/portfolio/SellModal";
 import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
 import { AllocationRadialChart } from "@/components/portfolio/AllocationRadialChart";
-import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 
@@ -1042,122 +1041,7 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 flex flex-wrap items-end justify-between gap-4 shadow-sm">
-        <div className="space-y-1">
-          <div className="text-xs uppercase tracking-wide text-zinc-500">Total portfolio value</div>
-          <div className="text-3xl font-semibold">
-            {formatCurrency(totalValue, currency, privacyMode)}
-          </div>
-          <div
-            className={`text-sm font-medium ${
-              !hasPrevious || Math.abs(dailyChangeValue) < 0.01
-                ? "text-zinc-500"
-                : dailyIsPositive
-                ? "text-green-600 dark:text-green-500"
-                : "text-red-600 dark:text-red-500"
-            }`}
-          >
-            {dailyChangeDisplay}
-          </div>
-          <div
-            className={`text-xs ${
-              Math.abs(rangeChangeValue) < 0.01
-                ? "text-zinc-500"
-                : rangeIsPositive
-                ? "text-green-600 dark:text-green-500"
-                : "text-red-600 dark:text-red-500"
-            }`}
-          >
-            Range performance: {rangePerformanceDisplay}
-          </div>
-        </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                Distribution across {allocationSummary.label.toLowerCase()}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {ALLOCATION_DIMENSIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setAllocationDimension(option.value)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                    allocationDimension === option.value
-                      ? "bg-blue-600 text-white shadow"
-                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <AllocationRadialChart
-            title={`${allocationSummary.label} Allocation`}
-            subtitle={valueMode === "percentage" ? "Current share (absolute values)" : undefined}
-            data={allocationSummary.data}
-            totalValue={allocationSummary.total}
-            totalCount={filteredStocks.length}
-            currency={currency}
-          />
-        </div>
-
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Investment Performance</div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                Live investment gains/losses for the selected range
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="inline-flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
-                <button
-                  type="button"
-                  onClick={() => setPerformancePeriod("yearly")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    performancePeriod === "yearly"
-                      ? "bg-blue-600 text-white"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  Yearly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPerformancePeriod("monthly")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    performancePeriod === "monthly"
-                      ? "bg-blue-600 text-white"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  Monthly
-                </button>
-              </div>
-              <Link
-                href="/portfolio/performance"
-                className="text-xs text-blue-500 hover:text-blue-600"
-              >
-                Show more →
-              </Link>
-            </div>
-          </div>
-          {performanceData.length === 0 ? (
-            <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 text-sm text-zinc-600 dark:text-zinc-300">
-              Not enough history to chart yet. Keep the app open to build a performance trail.
-            </div>
-          ) : (
-            <PerformanceBars data={performanceData} currency={currency} />
-          )}
-        </div>
-      </div>
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-1 text-xs font-medium">
             {PORTFOLIO_RANGE_OPTIONS.map((option) => (
@@ -1177,12 +1061,12 @@ export default function PortfolioPage() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800 text-sm font-medium">
               {(["total", "carolina", "simon"] as const).map((owner) => (
                 <button
                   key={owner}
                   onClick={() => setActiveTab(owner)}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 ${
+                  className={`px-3 py-1.5 border-b-2 transition-colors ${
                     activeTab === owner
                       ? owner === "carolina"
                         ? "border-purple-500 text-purple-600 dark:text-purple-400"
@@ -1218,22 +1102,102 @@ export default function PortfolioPage() {
           </div>
         </div>
       </div>
-      {benchmarkError && (
-        <div className="text-xs text-red-500">{benchmarkError}</div>
-      )}
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
-        <div className="mb-3 font-semibold">Investment Performance</div>
-        <PortfolioChart
-          portfolioHistory={ownerHistory}
-          currentValue={investmentValue}
-          baselineValue={totalCost > 0 ? totalCost : undefined}
-          height={280}
-          range={range}
-          benchmarkSeries={benchmarkSeries ?? undefined}
-          benchmarkLabel={selectedBenchmark.type !== "none" ? selectedBenchmark.label : undefined}
-          valueMode={valueMode}
-        />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 flex flex-wrap items-end justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-zinc-500">Total portfolio value</div>
+              <div className="text-3xl font-semibold">
+                {formatCurrency(totalValue, currency, privacyMode)}
+              </div>
+              <div
+                className={`text-sm font-medium ${
+                  !hasPrevious || Math.abs(dailyChangeValue) < 0.01
+                    ? "text-zinc-500"
+                    : dailyIsPositive
+                    ? "text-green-600 dark:text-green-500"
+                    : "text-red-600 dark:text-red-500"
+                }`}
+              >
+                {dailyChangeDisplay}
+              </div>
+              <div
+                className={`text-xs ${
+                  Math.abs(rangeChangeValue) < 0.01
+                    ? "text-zinc-500"
+                    : rangeIsPositive
+                    ? "text-green-600 dark:text-green-500"
+                    : "text-red-600 dark:text-red-500"
+                }`}
+              >
+                Range performance: {rangePerformanceDisplay}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Allocation</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Distribution across {allocationSummary.label.toLowerCase()}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {ALLOCATION_DIMENSIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setAllocationDimension(option.value)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      allocationDimension === option.value
+                        ? "bg-blue-600 text-white shadow"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <AllocationRadialChart
+              title={`${allocationSummary.label} Allocation`}
+              subtitle={valueMode === "percentage" ? "Current share (absolute values)" : undefined}
+              data={allocationSummary.data}
+              totalValue={allocationSummary.total}
+              totalCount={filteredStocks.length}
+              currency={currency}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-100">Investment Performance</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                Live investment gains/losses for the selected range
+              </div>
+            </div>
+            <Link
+              href="/portfolio/performance"
+              className="text-xs text-blue-500 hover:text-blue-600"
+            >
+              Show more →
+            </Link>
+          </div>
+          <PortfolioChart
+            portfolioHistory={ownerHistory}
+            currentValue={investmentValue}
+            baselineValue={totalCost > 0 ? totalCost : undefined}
+            height={280}
+            range={range}
+            benchmarkSeries={benchmarkSeries ?? undefined}
+            benchmarkLabel={selectedBenchmark.type !== "none" ? selectedBenchmark.label : undefined}
+            valueMode={valueMode}
+          />
+        </div>
       </div>
 
       <div className="-mx-2 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
