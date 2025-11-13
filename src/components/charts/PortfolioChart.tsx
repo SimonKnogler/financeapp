@@ -129,8 +129,16 @@ export function PortfolioChart({
     const portfolioMap = new Map(portfolioPoints.map((p) => [p.date, p.value] as const));
     const firstPortfolioValue = portfolioPoints[0]?.value ?? currentValue;
 
-    const firstBenchmarkDate = sortedDates.find((date) => benchmarkMap.has(date));
-    const initialBenchmarkClose = firstBenchmarkDate ? benchmarkMap.get(firstBenchmarkDate)! : undefined;
+    const firstCommonDate = sortedDates.find(
+      (date) => portfolioMap.has(date) && benchmarkMap.has(date)
+    );
+    const normalizationPortfolioValue: number =
+      firstCommonDate && portfolioMap.get(firstCommonDate) !== undefined
+        ? portfolioMap.get(firstCommonDate)!
+        : firstPortfolioValue;
+    const initialBenchmarkClose: number | undefined = firstCommonDate
+      ? benchmarkMap.get(firstCommonDate)
+      : undefined;
 
     const chartPoints: ChartPoint[] = sortedDates
       .map((date) => {
@@ -139,11 +147,14 @@ export function PortfolioChart({
         let benchmarkValue: number | null = null;
         if (
           benchmarkClose !== undefined &&
-          firstPortfolioValue > 0 &&
+          firstCommonDate &&
+          date >= firstCommonDate &&
+          normalizationPortfolioValue > 0 &&
           initialBenchmarkClose !== undefined &&
           initialBenchmarkClose > 0
         ) {
-          benchmarkValue = firstPortfolioValue * (benchmarkClose / initialBenchmarkClose);
+          benchmarkValue =
+            normalizationPortfolioValue * (benchmarkClose / initialBenchmarkClose);
         }
         return {
           date,
