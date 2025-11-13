@@ -1461,7 +1461,7 @@ export default function PortfolioPage() {
                         {assetType === "crypto" ? "₿" : assetType === "etf" ? "📊" : assetType === "cash" ? "💵" : "📈"}
                       </span>
                     </td>
-                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-slate-950 z-10">
+                    <td className="p-2 font-mono font-semibold sticky left-[60px] bg-white dark:bg-zinc-900 z-10">
                       {stock.symbol}
                     </td>
                     <td className="p-2 text-right">
@@ -1511,7 +1511,7 @@ export default function PortfolioPage() {
                       <select
                         value={stock.goalId || ""}
                         onChange={(e) => updateStock(stock.id, { goalId: e.target.value || undefined })}
-                        className="text-xs rounded border border-slate-700 bg-slate-950 px-1 py-0.5"
+                        className="text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-1 py-0.5"
                       >
                         <option value="">None</option>
                         {goals.map((goal) => (
