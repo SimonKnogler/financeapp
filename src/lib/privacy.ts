@@ -10,7 +10,9 @@ export function formatCurrency(
     return "•••••";
   }
 
-  return new Intl.NumberFormat(undefined, {
+  // Use 'de-DE' locale to ensure € symbol is shown for EUR
+  const locale = currency === "EUR" ? "de-DE" : undefined;
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -29,7 +31,9 @@ export function formatCurrencyDetailed(
     return "•••••";
   }
 
-  return new Intl.NumberFormat(undefined, {
+  // Use 'de-DE' locale to ensure € symbol is shown for EUR
+  const locale = currency === "EUR" ? "de-DE" : undefined;
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     maximumFractionDigits: 2,
