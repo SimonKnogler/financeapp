@@ -99,7 +99,8 @@ function normaliseAssumptions(
   result.inflationAnnual = normaliseNumber(result.inflationAnnual) ?? defaults.inflationAnnual;
   result.taxRateEffective = normaliseNumber(result.taxRateEffective) ?? defaults.taxRateEffective;
   result.startDateISO = normaliseString(result.startDateISO) ?? defaults.startDateISO;
-  result.currency = normaliseString(result.currency) ?? defaults.currency;
+  // Force currency to EUR to keep application consistent
+  result.currency = "EUR";
 
   return result;
 }

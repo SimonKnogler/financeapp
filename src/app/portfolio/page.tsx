@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useFinanceStore } from "@/store/finance-store";
-import { fetchStockPrices } from "@/lib/stock-prices";
+import { fetchStockPrices, fetchStockPrice } from "@/lib/stock-prices";
 import { fetchStockNewsMultiple } from "@/lib/stock-news";
 import { StockChart } from "@/components/charts/StockChart";
 import { PortfolioChart, type PortfolioRange, getPortfolioRangeStart } from "@/components/charts/PortfolioChart";
@@ -206,6 +206,30 @@ export default function PortfolioPage() {
           aggregated.set(dateKey, closeValue);
         }
 
+        const todayKey = new Date().toISOString().split("T")[0];
+
+        try {
+          if (selectedBenchmark.type === "stock") {
+            const latest = await fetchStockPrice(selectedBenchmark.value, currency);
+            if (latest?.price) {
+              aggregated.set(todayKey, latest.price);
+            }
+          } else if (selectedBenchmark.type === "crypto") {
+            const currentResponse = await fetch(
+              `/api/crypto-price?symbol=${encodeURIComponent(selectedBenchmark.value)}`,
+              { signal: controller.signal }
+            );
+            if (currentResponse.ok) {
+              const currentData = await currentResponse.json();
+              if (typeof currentData?.price === "number") {
+                aggregated.set(todayKey, currentData.price);
+              }
+            }
+          }
+        } catch (currentError) {
+          console.warn("Failed to fetch current benchmark price:", currentError);
+        }
+
         const normalizedSeries = Array.from(aggregated.entries())
           .map(([date, close]) => ({ date, close }))
           .sort((a, b) => a.date.localeCompare(b.date));
@@ -232,7 +256,7 @@ export default function PortfolioPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [selectedBenchmark.type, selectedBenchmark.value, range]);
+  }, [selectedBenchmark.type, selectedBenchmark.value, range, currency]);
 
   function resetCostBasisToCurrentPrices() {
     if (!confirm("This will set the cost basis of all positions to their current market price. This action cannot be undone. Continue?")) {

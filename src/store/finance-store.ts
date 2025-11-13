@@ -253,7 +253,9 @@ export const useFinanceStore = create<FinanceStore>()(
             timestamp: snapshot.timestamp ?? Date.now(),
           })),
           goals: data.goals ?? [],
-          assumptions: data.assumptions ? { ...state.assumptions, ...data.assumptions } : state.assumptions,
+          assumptions: data.assumptions
+            ? { ...state.assumptions, ...data.assumptions, currency: "EUR" }
+            : { ...state.assumptions, currency: "EUR" },
           customAssetReturns: data.customAssetReturns ?? {},
           cloudSyncToken: Date.now(),
           taxScenarios: Array.isArray(data.taxScenarios)

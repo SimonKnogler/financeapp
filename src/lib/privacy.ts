@@ -10,8 +10,8 @@ export function formatCurrency(
     return "•••••";
   }
 
-  // Use 'de-DE' locale to ensure € symbol is shown for EUR
-  const locale = currency === "EUR" ? "de-DE" : undefined;
+  // Use 'en-IE' locale to ensure € symbol is shown with leading placement
+  const locale = currency === "EUR" ? "en-IE" : undefined;
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
@@ -31,8 +31,8 @@ export function formatCurrencyDetailed(
     return "•••••";
   }
 
-  // Use 'de-DE' locale to ensure € symbol is shown for EUR
-  const locale = currency === "EUR" ? "de-DE" : undefined;
+  // Use 'en-IE' locale to ensure € symbol is shown with leading placement
+  const locale = currency === "EUR" ? "en-IE" : undefined;
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
