@@ -29,6 +29,13 @@ interface BenchmarkSeriesPoint {
   close: number;
 }
 
+interface StockMetadata {
+  sector: string | null;
+  industry: string | null;
+  country: string | null;
+  fetchedAt: number;
+}
+
 type AllocationDimension = "positions" | "type" | "sectors" | "assets" | "countries" | "currencies";
 
 const ALLOCATION_DIMENSIONS: { value: AllocationDimension; label: string }[] = [
@@ -89,12 +96,12 @@ const COUNTRY_SYMBOL_MAP: Record<string, string> = {
   ADA: "Global",
 };
 
-function inferSector(symbol: string): string {
+function fallbackSector(symbol: string): string {
   const upper = symbol.toUpperCase();
   return SECTOR_BY_SYMBOL[upper] ?? "Unclassified";
 }
 
-function inferCountry(symbol: string): string {
+function fallbackCountry(symbol: string): string {
   const upper = symbol.toUpperCase();
   if (COUNTRY_SYMBOL_MAP[upper]) {
     return COUNTRY_SYMBOL_MAP[upper];
@@ -189,6 +196,7 @@ export default function PortfolioPage() {
   const [valueMode, setValueMode] = useState<PortfolioValueMode>("absolute");
   const [selectedAccountId, setSelectedAccountId] = useState<string>(() => portfolioAccounts[0]?.id ?? "");
   const [allocationDimension, setAllocationDimension] = useState<AllocationDimension>("positions");
+  const [stockMetadata, setStockMetadata] = useState<Map<string, StockMetadata>>(new Map());
 
   const [prices, setPrices] = useState<Map<string, StockPrice>>(new Map());
   const [news, setNews] = useState<Map<string, StockNews[]>>(new Map());
@@ -443,6 +451,73 @@ export default function PortfolioPage() {
     };
   }, [selectedBenchmark.type, selectedBenchmark.value, range, currency]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    async function loadMetadata() {
+      const symbols = Array.from(
+        new Set(
+          stocks
+            .filter((stock) => stock.type !== "cash" && stock.type !== "crypto")
+            .map((stock) => stock.symbol.toUpperCase())
+        )
+      );
+
+      const missing = symbols.filter((symbol) => !stockMetadata.has(symbol));
+      if (missing.length === 0) {
+        return;
+      }
+
+      await Promise.all(
+        missing.map(async (symbol) => {
+          try {
+            const response = await fetch(`/api/stock-metadata?symbol=${encodeURIComponent(symbol)}`, {
+              signal: controller.signal,
+            });
+            if (!response.ok) {
+              throw new Error(`Failed to fetch metadata (${response.status})`);
+            }
+            const payload = await response.json();
+            if (cancelled) return;
+            setStockMetadata((prev) => {
+              const next = new Map(prev);
+              next.set(symbol, {
+                sector: payload.sector ?? null,
+                industry: payload.industry ?? null,
+                country: payload.country ?? null,
+                fetchedAt: Date.now(),
+              });
+              return next;
+            });
+          } catch (error) {
+            if (cancelled || controller.signal.aborted) {
+              return;
+            }
+            console.warn(`Metadata lookup failed for ${symbol}`, error);
+            setStockMetadata((prev) => {
+              const next = new Map(prev);
+              next.set(symbol, {
+                sector: null,
+                industry: null,
+                country: null,
+                fetchedAt: Date.now(),
+              });
+              return next;
+            });
+          }
+        })
+      );
+    }
+
+    loadMetadata();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [stocks, stockMetadata]);
+
   function resetCostBasisToCurrentPrices() {
     if (!confirm("This will set the cost basis of all positions to their current market price. This action cannot be undone. Continue?")) {
       return;
@@ -696,6 +771,7 @@ export default function PortfolioPage() {
     filteredStocks.forEach((holding) => {
       const value = getHoldingValue(holding);
       const symbol = holding.symbol.toUpperCase();
+      const metadata = stockMetadata.get(symbol);
       let key: string;
 
       switch (allocationDimension) {
@@ -706,13 +782,21 @@ export default function PortfolioPage() {
           key = holding.type.charAt(0).toUpperCase() + holding.type.slice(1);
           break;
         case "sectors":
-          key = inferSector(symbol);
+          if (holding.type === "crypto") {
+            key = "Digital Assets";
+            break;
+          }
+          key = metadata?.sector ?? metadata?.industry ?? fallbackSector(symbol);
           break;
         case "assets":
           key = getHoldingAccountName(holding);
           break;
         case "countries":
-          key = inferCountry(symbol);
+          if (holding.type === "crypto") {
+            key = "Global";
+            break;
+          }
+          key = metadata?.country ?? fallbackCountry(symbol);
           break;
         case "currencies":
           key = getHoldingCurrency(holding);
@@ -752,6 +836,7 @@ export default function PortfolioPage() {
     getHoldingAccountName,
     getHoldingCurrency,
     getHoldingValue,
+    stockMetadata,
   ]);
 
   const cashValue = filteredStocks
