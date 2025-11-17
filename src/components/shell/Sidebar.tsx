@@ -4,13 +4,14 @@ import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/ui"; 
-import { Banknote, Coins, Settings, FlaskConical, TrendingUp, Eye, EyeOff, LineChart, Target, Newspaper, Calculator, FileText, X } from "lucide-react";
+import { Banknote, Coins, Settings, FlaskConical, TrendingUp, Eye, EyeOff, LineChart, Target, Newspaper, Calculator, FileText, X, Home } from "lucide-react";
 import { useFinanceStore } from "@/store/finance-store";
 
 const navItems = [
   { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
   { href: "/projections", label: "Projections", icon: LineChart },
   { href: "/goals", label: "Goals", icon: Target },
+  { href: "/mortgage", label: "Mortgage", icon: Home },
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/income", label: "Income", icon: Banknote },
   { href: "/expenses", label: "Expenses", icon: Coins },
@@ -114,7 +115,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
             style={{ transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)' }}
           >
             {sidebarContent}
-          </aside>
+    </aside>
         </>
       )}
     </>

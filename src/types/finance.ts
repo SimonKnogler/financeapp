@@ -147,6 +147,33 @@ export interface MonteCarloResult {
   successRate: number; // probability of reaching goals
 }
 
+export type MortgagePaymentType = "annuity" | "custom";
+
+export interface MortgageRateAdjustment {
+  id: string;
+  year: number; // 1-indexed year when this rate takes effect
+  ratePercent: number; // e.g. 4.2
+}
+
+export interface MortgageScenario {
+  id: string;
+  name: string;
+  purchasePrice: number;
+  downPayment: number;
+  loanAmount: number;
+  interestRate: number; // initial annual rate in percent
+  paymentType: MortgagePaymentType;
+  initialRepaymentPercent?: number; // for annuity, e.g. 2%
+  monthlyPayment?: number; // for custom
+  termYears: number;
+  fixationYears: number;
+  extraPaymentAnnual?: number;
+  extraPaymentMonthly?: number;
+  startDateISO?: string;
+  notes?: string;
+  rateAdjustments?: MortgageRateAdjustment[];
+}
+
 export interface FinanceState {
   accounts: Account[];
   portfolioAccounts: PortfolioAccount[];
@@ -157,6 +184,7 @@ export interface FinanceState {
   goals: FinancialGoal[];
   assumptions: Assumptions;
   documents: StoredDocument[];
+  mortgageScenarios: MortgageScenario[];
 }
 
 export interface ProjectionPoint {

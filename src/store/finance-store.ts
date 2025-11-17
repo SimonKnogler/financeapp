@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addMonths, startOfMonth } from "date-fns";
-import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding, StoredDocument, PortfolioAccount } from "@/types/finance";
+import { Assumptions, Account, ExpenseItem, FinanceState, IncomeItem, StockHolding, StoredDocument, PortfolioAccount, MortgageScenario } from "@/types/finance";
 import type { GermanTaxScenario } from "@/types/tax";
 
 function firstOfCurrentMonthISO(): string {
@@ -45,6 +45,36 @@ function normalizeTaxScenario(input?: Partial<GermanTaxScenario>): GermanTaxScen
   };
 }
 
+function normalizeMortgageScenario(input?: Partial<MortgageScenario>): MortgageScenario {
+  const purchasePrice = input?.purchasePrice ?? 500000;
+  const downPayment = input?.downPayment ?? Math.min(100000, purchasePrice * 0.2);
+  const loanAmount = input?.loanAmount ?? Math.max(purchasePrice - downPayment, 0);
+  return {
+    id: input?.id ?? generateId("mort"),
+    name: input?.name ?? "Neue Finanzierung",
+    purchasePrice,
+    downPayment,
+    loanAmount,
+    interestRate: input?.interestRate ?? 4,
+    paymentType: input?.paymentType ?? "annuity",
+    initialRepaymentPercent: input?.initialRepaymentPercent ?? 2,
+    monthlyPayment: input?.monthlyPayment,
+    termYears: input?.termYears ?? 30,
+    fixationYears: input?.fixationYears ?? 10,
+    extraPaymentAnnual: input?.extraPaymentAnnual ?? 0,
+    extraPaymentMonthly: input?.extraPaymentMonthly ?? 0,
+    startDateISO: input?.startDateISO ?? firstOfCurrentMonthISO(),
+    notes: input?.notes,
+    rateAdjustments: Array.isArray(input?.rateAdjustments)
+      ? input!.rateAdjustments!.map((adj) => ({
+          id: adj.id ?? generateId("rate"),
+          year: Math.max(1, adj.year ?? 1),
+          ratePercent: adj.ratePercent ?? input?.interestRate ?? 4,
+        }))
+      : [],
+  };
+}
+
 export interface FinanceStore extends FinanceState {
   // Privacy
   privacyMode: boolean;
@@ -85,6 +115,7 @@ export interface FinanceStore extends FinanceState {
       customAssetReturns?: Record<string, number>;
       taxScenarios?: Partial<GermanTaxScenario>[];
       documents?: StoredDocument[];
+      mortgageScenarios?: Partial<MortgageScenario>[];
     }
   ) => void;
   cloudSyncToken: number;
@@ -100,6 +131,11 @@ export interface FinanceStore extends FinanceState {
   addDocument: (document: StoredDocument) => void;
   updateDocument: (id: string, updates: Partial<StoredDocument>) => void;
   removeDocument: (id: string) => void;
+  // Mortgage scenarios
+  addMortgageScenario: (scenario?: Partial<MortgageScenario>) => void;
+  updateMortgageScenario: (id: string, updates: Partial<MortgageScenario>) => void;
+  removeMortgageScenario: (id: string) => void;
+  duplicateMortgageScenario: (id: string) => void;
 }
 
 const defaultState: FinanceState & {
@@ -107,6 +143,7 @@ const defaultState: FinanceState & {
   taxScenarios: GermanTaxScenario[];
   cloudSyncToken: number;
   documents: StoredDocument[];
+  mortgageScenarios: MortgageScenario[];
 } = {
   accounts: [],
   portfolioAccounts: [
@@ -134,6 +171,7 @@ const defaultState: FinanceState & {
   cloudSyncToken: 0,
   taxScenarios: [],
   documents: [],
+  mortgageScenarios: [],
 };
 
 export const useFinanceStore = create<FinanceStore>()(
@@ -313,14 +351,17 @@ export const useFinanceStore = create<FinanceStore>()(
           taxScenarios: Array.isArray(data.taxScenarios)
             ? data.taxScenarios.map((scenario) => normalizeTaxScenario(scenario))
             : state.taxScenarios ?? [],
-            documents: Array.isArray(data.documents)
-              ? data.documents
-                  .map((doc) => ({
-                    ...doc,
-                    uploadedAt: doc.uploadedAt ?? new Date().toISOString(),
-                  }))
-                  .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-              : state.documents ?? [],
+          documents: Array.isArray(data.documents)
+            ? data.documents
+                .map((doc) => ({
+                  ...doc,
+                  uploadedAt: doc.uploadedAt ?? new Date().toISOString(),
+                }))
+                .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+            : state.documents ?? [],
+          mortgageScenarios: Array.isArray(data.mortgageScenarios)
+            ? data.mortgageScenarios.map((scenario) => normalizeMortgageScenario(scenario))
+            : state.mortgageScenarios ?? [],
           };
         }),
       addTaxScenario: (scenario) =>
@@ -366,10 +407,37 @@ export const useFinanceStore = create<FinanceStore>()(
         set((state) => ({
           documents: state.documents.filter((doc) => doc.id !== id),
         })),
+      addMortgageScenario: (scenario) =>
+        set((state) => ({
+          mortgageScenarios: [...state.mortgageScenarios, normalizeMortgageScenario(scenario)],
+        })),
+      updateMortgageScenario: (id, updates) =>
+        set((state) => ({
+          mortgageScenarios: state.mortgageScenarios.map((scenario) =>
+            scenario.id === id ? normalizeMortgageScenario({ ...scenario, ...updates, id }) : scenario
+          ),
+        })),
+      removeMortgageScenario: (id) =>
+        set((state) => ({
+          mortgageScenarios: state.mortgageScenarios.filter((scenario) => scenario.id !== id),
+        })),
+      duplicateMortgageScenario: (id) =>
+        set((state) => {
+          const scenario = state.mortgageScenarios.find((s) => s.id === id);
+          if (!scenario) {
+            return {} as Partial<FinanceStore>;
+          }
+          const clone = normalizeMortgageScenario({
+            ...scenario,
+            id: undefined,
+            name: `${scenario.name} (Copy)`,
+          });
+          return { mortgageScenarios: [...state.mortgageScenarios, clone] };
+        }),
     }),
     {
       name: "finance-app-v1",
-      version: 14, // v14 introduces portfolio accounts
+      version: 15, // v15 introduces mortgage tracker
       partialize: (state) => state,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
@@ -492,6 +560,12 @@ export const useFinanceStore = create<FinanceStore>()(
                 normalizedAccounts[0]?.id ??
                 defaultState.portfolioAccounts[0].id,
             })),
+          };
+        }
+        if (version < 15) {
+          persistedState = {
+            ...persistedState,
+            mortgageScenarios: [],
           };
         }
         return persistedState;

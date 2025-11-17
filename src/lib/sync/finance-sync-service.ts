@@ -12,12 +12,13 @@ const CLIENT_ID_STORAGE_KEY = "finance-sync-client-id";
 
 export const FINANCE_SYNC_VERSION = 1;
 
-import type { FinanceState, StoredDocument, PortfolioAccount } from "@/types/finance";
+import type { FinanceState, StoredDocument, PortfolioAccount, MortgageScenario } from "@/types/finance";
 
 export type FinanceSyncState = FinanceState & {
   customAssetReturns: Record<string, number>;
   taxScenarios?: import("@/types/tax").GermanTaxScenario[];
   documents?: StoredDocument[];
+  mortgageScenarios?: MortgageScenario[];
 };
 
 export type FinanceSyncData = FinanceSyncState;
@@ -208,6 +209,40 @@ function normalisePortfolioAccount(
   };
 }
 
+function normaliseMortgageScenario(
+  scenario: Partial<MortgageScenario> | undefined
+): MortgageScenario {
+  const purchasePrice = normaliseNumber(scenario?.purchasePrice) ?? 0;
+  const downPayment = normaliseNumber(scenario?.downPayment) ?? 0;
+  const loanAmount =
+    normaliseNumber(scenario?.loanAmount) ?? Math.max(purchasePrice - downPayment, 0);
+
+  return {
+    id: scenario?.id ?? randomId("mort"),
+    name: normaliseString(scenario?.name) ?? "Mortgage Scenario",
+    purchasePrice,
+    downPayment,
+    loanAmount,
+    interestRate: normaliseNumber(scenario?.interestRate) ?? 4,
+    paymentType: scenario?.paymentType === "custom" ? "custom" : "annuity",
+    initialRepaymentPercent: normaliseNumber(scenario?.initialRepaymentPercent) ?? 2,
+    monthlyPayment: normaliseNumber(scenario?.monthlyPayment),
+    termYears: normaliseNumber(scenario?.termYears) ?? 30,
+    fixationYears: normaliseNumber(scenario?.fixationYears) ?? 10,
+    extraPaymentAnnual: normaliseNumber(scenario?.extraPaymentAnnual) ?? 0,
+    extraPaymentMonthly: normaliseNumber(scenario?.extraPaymentMonthly) ?? 0,
+    startDateISO: normaliseString(scenario?.startDateISO),
+    notes: normaliseString(scenario?.notes),
+    rateAdjustments: Array.isArray(scenario?.rateAdjustments)
+      ? scenario!.rateAdjustments!.map((adj) => ({
+          id: adj.id ?? randomId("rate"),
+          year: Math.max(1, Math.round(normaliseNumber(adj.year) ?? 1)),
+          ratePercent: normaliseNumber(adj.ratePercent) ?? normaliseNumber(scenario?.interestRate) ?? 4,
+        }))
+      : [],
+  };
+}
+
 export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncData {
   const accounts = sortById((state.accounts ?? []).map((account) => cleanObject({
     ...account,
@@ -260,6 +295,10 @@ export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncDa
 
   const documents = sortDocumentsByDate((state.documents ?? []).map((document) => normaliseDocument(document)));
 
+  const mortgageScenarios = sortById(
+    (state.mortgageScenarios ?? []).map((scenario) => cleanObject(normaliseMortgageScenario(scenario)))
+  );
+
   const customAssetReturnsEntries = Object.entries(state.customAssetReturns ?? {})
     .filter(([, value]) => Number.isFinite(Number(value)))
     .map(([symbol, value]) => [symbol, Number(value)] as const)
@@ -282,6 +321,7 @@ export function sanitizeFinanceSyncState(state: FinanceSyncState): FinanceSyncDa
     customAssetReturns,
     taxScenarios: sortById((state.taxScenarios ?? []).map((scenario) => normaliseTaxScenario(scenario))),
     documents,
+    mortgageScenarios,
   } satisfies FinanceSyncData;
 }
 
@@ -338,6 +378,7 @@ export function deserializeFinanceDocument(document: FinanceSyncDocument): Finan
     customAssetReturns: data.customAssetReturns ?? {},
     taxScenarios: data.taxScenarios ?? [],
     documents: data.documents ?? [],
+    mortgageScenarios: data.mortgageScenarios ?? [],
   });
 }
 

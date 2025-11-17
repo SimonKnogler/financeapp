@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { FinanceState, StoredDocument } from '@/types/finance';
+import type { FinanceState, StoredDocument, MortgageScenario } from '@/types/finance';
 import type { GermanTaxScenario } from '@/types/tax';
 import {
   FinanceSyncDocument,
@@ -18,6 +18,7 @@ function toSyncState(
     customAssetReturns: Record<string, number>;
     taxScenarios?: GermanTaxScenario[];
     documents?: StoredDocument[];
+    mortgageScenarios?: MortgageScenario[];
   }
 ): FinanceSyncState {
   return {
@@ -25,11 +26,17 @@ function toSyncState(
     customAssetReturns: state.customAssetReturns ?? {},
     taxScenarios: state.taxScenarios ?? [],
     documents: state.documents ?? [],
+    mortgageScenarios: state.mortgageScenarios ?? [],
   } as FinanceSyncState;
 }
 
 export async function uploadToCloud(
-  rawState: FinanceState & { customAssetReturns: Record<string, number>; documents?: StoredDocument[]; taxScenarios?: GermanTaxScenario[] },
+  rawState: FinanceState & {
+    customAssetReturns: Record<string, number>;
+    documents?: StoredDocument[];
+    taxScenarios?: GermanTaxScenario[];
+    mortgageScenarios?: MortgageScenario[];
+  },
   options?: { force?: boolean }
 ): Promise<{ success: true; skipped: boolean; document: FinanceSyncDocument }> {
   const {
@@ -86,7 +93,9 @@ export async function downloadFinanceDocument(): Promise<FinanceSyncDocument | n
   return document;
 }
 
-export async function downloadFromCloud(): Promise<(FinanceState & { customAssetReturns: Record<string, number> }) | null> {
+export async function downloadFromCloud(): Promise<
+  (FinanceState & { customAssetReturns: Record<string, number>; mortgageScenarios: MortgageScenario[] }) | null
+> {
   const document = await downloadFinanceDocument();
   if (!document) {
     return null;

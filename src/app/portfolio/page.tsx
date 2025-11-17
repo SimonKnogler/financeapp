@@ -13,7 +13,6 @@ import { RevolutImport } from "@/components/portfolio/RevolutImport";
 import { GlobalSearch, type GlobalSearchItem } from "@/components/portfolio/GlobalSearch";
 import { AllocationRadialChart } from "@/components/portfolio/AllocationRadialChart";
 import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
-import { PerformanceBars } from "@/components/portfolio/PerformanceBars";
 import { formatCurrency, formatCurrencyDetailed, formatNumber, formatPercent } from "@/lib/privacy";
 import type { StockPrice, StockNews, StockHolding, AssetType, PortfolioOwner, PortfolioSnapshot } from "@/types/finance";
 

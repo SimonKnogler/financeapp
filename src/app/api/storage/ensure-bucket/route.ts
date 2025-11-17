@@ -17,7 +17,7 @@ export async function POST() {
   const { data, error } = await supabaseAdmin.storage.getBucket(BUCKET_ID);
 
   if (error && error.message !== "Bucket not found") {
-    return NextResponse.json({ error: error.message }, { status: error.status ?? 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if (!data) {
@@ -26,7 +26,7 @@ export async function POST() {
     });
 
     if (createError && createError.message !== "Bucket already exists") {
-      return NextResponse.json({ error: createError.message }, { status: createError.status ?? 500 });
+      return NextResponse.json({ error: createError.message }, { status: 500 });
     }
   }
 
